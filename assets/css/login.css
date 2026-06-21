@@ -1,0 +1,200 @@
+/**
+ * WhatsApp SaaS Core - Login Styles
+ * Premium SaaS Aesthetic
+ */
+
+:root {
+    --login-primary: #2563eb;
+    --login-primary-hover: #1d4ed8;
+    --login-text: #1e293b;
+    --login-text-muted: #64748b;
+    --login-bg-overlay: rgba(15, 23, 42, 0.6);
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+.was-login-body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: url('../images/login-bg.png') no-repeat center center fixed;
+    background-size: cover;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.was-login-body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--login-bg-overlay);
+    backdrop-filter: blur(4px);
+    z-index: 1;
+}
+
+.was-login-container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 440px;
+    padding: 20px;
+    animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.was-login-box {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 48px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+
+.was-login-logo {
+    width: 120px;
+    height: auto;
+    margin-bottom: 24px;
+}
+
+.was-login-box h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--login-text);
+    margin: 0 0 8px 0;
+    letter-spacing: -0.025em;
+}
+
+.was-login-box p {
+    color: var(--login-text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 32px;
+}
+
+.was-errors {
+    background: #fee2e2;
+    border-left: 4px solid #ef4444;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    text-align: left;
+}
+
+.was-errors p {
+    color: #991b1b;
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.was-form-group {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.was-form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--login-text);
+    margin-bottom: 8px;
+}
+
+.was-form-group input[type="text"],
+.was-form-group input[type="password"] {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.was-form-group input:focus {
+    outline: none;
+    border-color: var(--login-primary);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    background: #fff;
+}
+
+.was-form-group.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.was-form-group.checkbox input {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.was-form-group.checkbox label {
+    margin-bottom: 0;
+    cursor: pointer;
+    color: var(--login-text-muted);
+}
+
+.was-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    background: var(--login-primary);
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+}
+
+.was-btn:hover {
+    background: var(--login-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+}
+
+.was-btn:active {
+    transform: translateY(0);
+}
+
+.was-login-footer {
+    margin-top: 32px;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+}
+
+.was-login-footer a {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.2s;
+}
+
+.was-login-footer a:hover {
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .was-login-box {
+        padding: 32px 24px;
+    }
+}

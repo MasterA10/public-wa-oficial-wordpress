@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+*.local
+secrets-*.md
+.DS_Store
