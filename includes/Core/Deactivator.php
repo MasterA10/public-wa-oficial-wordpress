@@ -20,6 +20,8 @@ class Deactivator {
 	 * Run deactivation logic.
 	 */
 	public static function deactivate() {
-		// Cleanup logic will go here.
+		wp_clear_scheduled_hook( 'was_router_process_outbox' );
+		wp_clear_scheduled_hook( 'was_router_sync_template_statuses' );
+		wp_clear_scheduled_hook( 'was_router_process_onboarding_reconciliation' );
 	}
 }

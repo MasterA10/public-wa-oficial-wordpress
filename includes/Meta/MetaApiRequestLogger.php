@@ -64,28 +64,36 @@ class MetaApiRequestLogger {
             if (json_last_error() === JSON_ERROR_NONE) {
                 $payload = $decoded;
                 $isArray = true;
+            } elseif (strpos($payload, 'access_token=') !== false) {
+                return preg_replace('/access_token=[^&]+/', 'access_token=TOKEN_MASKED', $payload);
             }
         }
 
         if ($isArray || $isObject) {
-            $data = (array)$payload;
-            if (isset($data['access_token'])) {
-                $data['access_token'] = 'TOKEN_MASKED';
-            }
-            if (isset($data['verify_token'])) {
-                $data['verify_token'] = 'TOKEN_MASKED';
-            }
-            
-            // Mascara token nas URLs (ex: links de media)
-            array_walk_recursive($data, function (&$item) {
-                if (is_string($item) && strpos($item, 'access_token=') !== false) {
-                    $item = preg_replace('/access_token=[^&]+/', 'access_token=TOKEN_MASKED', $item);
-                }
-            });
-
+            $data = self::sanitizeSensitiveData((array)$payload);
             return $isArray ? $data : (object)$data;
         }
 
         return $payload;
+    }
+
+    private static function sanitizeSensitiveData(array $data): array {
+        foreach ($data as $key => $value) {
+            if (in_array($key, ['access_token', 'verify_token'], true)) {
+                $data[$key] = 'TOKEN_MASKED';
+                continue;
+            }
+
+            if (is_array($value) || is_object($value)) {
+                $data[$key] = self::sanitizeSensitiveData((array)$value);
+                continue;
+            }
+
+            if (is_string($value) && strpos($value, 'access_token=') !== false) {
+                $data[$key] = preg_replace('/access_token=[^&]+/', 'access_token=TOKEN_MASKED', $value);
+            }
+        }
+
+        return $data;
     }
 }

@@ -136,7 +136,15 @@ class Installer {
 			currency varchar(20) DEFAULT NULL,
 			timezone varchar(80) DEFAULT NULL,
 			status varchar(50) DEFAULT 'connected',
+			token_expires_at datetime DEFAULT NULL,
+			last_sync_at datetime DEFAULT NULL,
+			last_sync_error text DEFAULT NULL,
 			webhook_subscription_status varchar(50) DEFAULT 'unknown',
+			webhook_subscribed tinyint(1) DEFAULT 0,
+			webhook_override_detected tinyint(1) DEFAULT 0,
+			webhook_override_callback_url text DEFAULT NULL,
+			webhook_last_check_at datetime DEFAULT NULL,
+			webhook_last_error text DEFAULT NULL,
 			last_template_sync_at datetime DEFAULT NULL,
 			last_webhook_event_at datetime DEFAULT NULL,
 			connected_at datetime DEFAULT NULL,
@@ -164,6 +172,15 @@ class Installer {
 			verified_name varchar(255) NULL,
 			quality_rating varchar(50) DEFAULT NULL,
 			messaging_limit_tier varchar(50) DEFAULT NULL,
+			meta_status varchar(80) DEFAULT NULL,
+			code_verification_status varchar(80) DEFAULT NULL,
+			platform_type varchar(80) DEFAULT NULL,
+			throughput_json longtext DEFAULT NULL,
+			last_status_check_at datetime DEFAULT NULL,
+			last_status_changed_at datetime DEFAULT NULL,
+			last_status_error text DEFAULT NULL,
+			last_status_fingerprint varchar(128) DEFAULT NULL,
+			last_status_response_json longtext DEFAULT NULL,
 			status varchar(50) DEFAULT 'active',
 			name_status varchar(80) DEFAULT NULL,
 			account_mode varchar(80) DEFAULT NULL,
@@ -173,11 +190,19 @@ class Installer {
 			last_webhook_at datetime DEFAULT NULL,
 			last_error text DEFAULT NULL,
 			is_default tinyint(1) DEFAULT 0,
+			default_route_id bigint(20) UNSIGNED DEFAULT NULL,
+			webhook_override_detected tinyint(1) DEFAULT 0,
+			webhook_override_callback_url text DEFAULT NULL,
+			webhook_last_check_at datetime DEFAULT NULL,
+			webhook_last_error text DEFAULT NULL,
 			created_at datetime NOT NULL,
+			updated_at datetime NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY phone_number_id (phone_number_id),
 			KEY tenant_id (tenant_id),
-			KEY wa_account_id (whatsapp_account_id)
+			KEY wa_account_id (whatsapp_account_id),
+			KEY meta_status (meta_status),
+			KEY default_route_id (default_route_id)
 		) $charset_collate;";
 		dbDelta( $sql_wa_phones );
 
@@ -370,6 +395,7 @@ class Installer {
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			tenant_id bigint(20) UNSIGNED NOT NULL,
 			whatsapp_account_id bigint(20) UNSIGNED NOT NULL,
+			router_phone_number_id bigint(20) UNSIGNED DEFAULT NULL,
 			meta_template_id varchar(190) NULL,
 			waba_id varchar(100) NOT NULL,
 			name varchar(190) NOT NULL,
@@ -378,6 +404,7 @@ class Installer {
 			status varchar(50) DEFAULT 'draft',
 			friendly_payload longtext NULL,
 			meta_payload longtext NULL,
+			meta_response_json longtext NULL,
 			variable_map longtext NULL,
 			header_type varchar(50) NULL,
 			body_text longtext NOT NULL,
@@ -392,6 +419,10 @@ class Installer {
 			paused_at datetime NULL,
 			deleted_at datetime NULL,
 			synced_at datetime NULL,
+			requested_callback_url text DEFAULT NULL,
+			last_status_check_at datetime DEFAULT NULL,
+			last_status_error text DEFAULT NULL,
+			approved_notified_at datetime DEFAULT NULL,
 			template_family varchar(50) DEFAULT NULL,
 			authentication_type varchar(50) DEFAULT NULL,
 			code_expiration_minutes int(11) DEFAULT NULL,
@@ -406,6 +437,8 @@ class Installer {
 			PRIMARY KEY  (id),
 			UNIQUE KEY tenant_waba_template_lang (tenant_id, waba_id, name, language),
 			KEY tenant_id (tenant_id),
+			KEY whatsapp_account_id (whatsapp_account_id),
+			KEY router_phone_number_id (router_phone_number_id),
 			KEY waba_id (waba_id),
 			KEY status (status),
 			KEY category (category)
@@ -453,17 +486,34 @@ class Installer {
 			tenant_id bigint(20) UNSIGNED DEFAULT NULL,
 			waba_id varchar(100) DEFAULT NULL,
 			phone_number_id varchar(100) DEFAULT NULL,
+			whatsapp_account_id bigint(20) UNSIGNED DEFAULT NULL,
+			whatsapp_phone_number_row_id bigint(20) UNSIGNED DEFAULT NULL,
 			event_type varchar(100) DEFAULT 'unknown',
+			message_type varchar(100) DEFAULT NULL,
+			wa_message_id varchar(190) DEFAULT NULL,
+			wa_from varchar(80) DEFAULT NULL,
 			payload longtext NOT NULL,
+			normalized_payload longtext DEFAULT NULL,
 			processing_status varchar(50) DEFAULT 'pending',
 			signature_valid tinyint(1) DEFAULT 0,
+			idempotency_key varchar(255) DEFAULT NULL,
+			routing_status varchar(80) DEFAULT 'received',
+			routing_note text DEFAULT NULL,
 			error_message text DEFAULT NULL,
 			received_at datetime NOT NULL,
 			processed_at datetime NULL,
 			PRIMARY KEY  (id),
 			KEY tenant_id (tenant_id),
 			KEY waba_id (waba_id),
+			KEY phone_number_id (phone_number_id),
+			KEY whatsapp_account_id (whatsapp_account_id),
+			KEY whatsapp_phone_number_row_id (whatsapp_phone_number_row_id),
+			KEY event_type (event_type),
+			KEY message_type (message_type),
+			KEY wa_message_id (wa_message_id),
+			UNIQUE KEY idempotency_key (idempotency_key),
 			KEY processing_status (processing_status),
+			KEY routing_status (routing_status),
 			KEY received_at (received_at)
 		) $charset_collate;";
 		dbDelta( $sql_webhooks );
@@ -692,6 +742,169 @@ class Installer {
 			KEY meta_user_id (meta_user_id)
 		) $charset_collate;";
 		dbDelta( $sql_deletion_requests );
+
+		// Router API tokens table.
+		$table_router_tokens = TableNameResolver::getRouterApiTokensTable();
+		$sql_router_tokens = "CREATE TABLE $table_router_tokens (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) UNSIGNED DEFAULT NULL,
+			name varchar(190) NOT NULL,
+			token_hash varchar(128) NOT NULL,
+			capabilities longtext DEFAULT NULL,
+			status varchar(50) DEFAULT 'active',
+			expires_at datetime DEFAULT NULL,
+			last_used_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY token_hash (token_hash),
+			KEY user_id (user_id),
+			KEY status (status)
+		) $charset_collate;";
+		dbDelta( $sql_router_tokens );
+
+		// Router routes table.
+		$table_routes = TableNameResolver::getRoutesTable();
+		$sql_routes = "CREATE TABLE $table_routes (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			tenant_id bigint(20) UNSIGNED NOT NULL,
+			phone_number_id bigint(20) UNSIGNED NOT NULL,
+			name varchar(190) NOT NULL,
+			target_url text NOT NULL,
+			target_url_hash varchar(64) NOT NULL,
+			secret_encrypted text DEFAULT NULL,
+			event_filters_json longtext DEFAULT NULL,
+			is_active tinyint(1) DEFAULT 1,
+			status varchar(50) DEFAULT 'active',
+			timeout_ms int(11) DEFAULT 8000,
+			max_retries int(11) DEFAULT 3,
+			priority int(11) DEFAULT 100,
+			created_at datetime NOT NULL,
+			updated_at datetime NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY active_phone_target (tenant_id, phone_number_id, target_url_hash, is_active),
+			KEY tenant_id (tenant_id),
+			KEY phone_number_id (phone_number_id),
+			KEY status (status),
+			KEY is_active (is_active),
+			KEY priority (priority)
+		) $charset_collate;";
+		dbDelta( $sql_routes );
+
+		// Router outbox deliveries table.
+		$table_outbox = TableNameResolver::getOutboxDeliveriesTable();
+		$sql_outbox = "CREATE TABLE $table_outbox (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			event_id bigint(20) UNSIGNED NOT NULL,
+			route_id bigint(20) UNSIGNED NOT NULL,
+			status varchar(50) DEFAULT 'pending',
+			attempts int(11) DEFAULT 0,
+			next_attempt_at datetime DEFAULT NULL,
+			last_error text DEFAULT NULL,
+			response_status int(11) DEFAULT NULL,
+			response_body longtext DEFAULT NULL,
+			delivered_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY event_id (event_id),
+			KEY route_id (route_id),
+			KEY status (status),
+			KEY next_attempt_at (next_attempt_at)
+		) $charset_collate;";
+		dbDelta( $sql_outbox );
+
+		// Router onboarding registrations table.
+		$table_registrations = TableNameResolver::getOnboardingRegistrationsTable();
+		$sql_registrations = "CREATE TABLE $table_registrations (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			tenant_id bigint(20) UNSIGNED NOT NULL,
+			meta_app_id bigint(20) UNSIGNED NOT NULL,
+			company_id varchar(160) DEFAULT NULL,
+			attempt_id varchar(160) DEFAULT NULL,
+			state varchar(500) DEFAULT NULL,
+			phone_number varchar(40) NOT NULL,
+			phone_number_variants_json longtext NOT NULL,
+			provider varchar(80) DEFAULT 'meta_whatsapp',
+			callback_url text NOT NULL,
+			authorization_url text DEFAULT NULL,
+			redirect_uri text DEFAULT NULL,
+			authorization_code_hash varchar(80) DEFAULT NULL,
+			authorization_code_encrypted text DEFAULT NULL,
+			access_token_encrypted text DEFAULT NULL,
+			token_exchanged_at datetime DEFAULT NULL,
+			token_exchange_status varchar(80) DEFAULT NULL,
+			meta_waba_id varchar(120) DEFAULT NULL,
+			owner_business_id varchar(120) DEFAULT NULL,
+			business_id varchar(120) DEFAULT NULL,
+			phone_number_id varchar(120) DEFAULT NULL,
+			display_phone_number varchar(80) DEFAULT NULL,
+			verified_name varchar(180) DEFAULT NULL,
+			status varchar(50) DEFAULT 'onboarding',
+			last_error text DEFAULT NULL,
+			router_waba_id bigint(20) UNSIGNED DEFAULT NULL,
+			router_phone_number_id bigint(20) UNSIGNED DEFAULT NULL,
+			route_id bigint(20) UNSIGNED DEFAULT NULL,
+			notified_at datetime DEFAULT NULL,
+			last_notification_status int(11) DEFAULT NULL,
+			last_notification_error text DEFAULT NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NULL,
+			PRIMARY KEY  (id),
+			KEY tenant_id (tenant_id),
+			KEY meta_app_id (meta_app_id),
+			KEY attempt_id (attempt_id),
+			KEY company_id (company_id),
+			KEY phone_number (phone_number),
+			KEY meta_waba_id (meta_waba_id),
+			KEY phone_number_id (phone_number_id),
+			KEY router_waba_id (router_waba_id),
+			KEY router_phone_number_id (router_phone_number_id),
+			KEY route_id (route_id),
+			KEY status (status)
+		) $charset_collate;";
+		dbDelta( $sql_registrations );
+
+		// Router onboarding reconciliation jobs table.
+		$table_jobs = TableNameResolver::getOnboardingReconciliationJobsTable();
+		$sql_jobs = "CREATE TABLE $table_jobs (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			registration_id bigint(20) UNSIGNED NOT NULL,
+			status varchar(80) DEFAULT 'pending',
+			attempts int(11) DEFAULT 0,
+			last_error text DEFAULT NULL,
+			processed_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NULL,
+			PRIMARY KEY  (id),
+			KEY registration_id (registration_id),
+			KEY status (status),
+			KEY created_at (created_at)
+		) $charset_collate;";
+		dbDelta( $sql_jobs );
+
+		// Router outbound messages table.
+		$table_outbound = TableNameResolver::getOutboundMessagesTable();
+		$sql_outbound = "CREATE TABLE $table_outbound (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			tenant_id bigint(20) UNSIGNED NOT NULL,
+			phone_number_id bigint(20) UNSIGNED NOT NULL,
+			to_number varchar(80) NOT NULL,
+			message_type varchar(80) NOT NULL,
+			idempotency_key varchar(190) DEFAULT NULL,
+			request_payload longtext NOT NULL,
+			meta_response longtext DEFAULT NULL,
+			meta_message_id varchar(190) DEFAULT NULL,
+			status varchar(80) DEFAULT 'requested',
+			requested_by varchar(255) DEFAULT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY tenant_id (tenant_id),
+			KEY phone_number_id (phone_number_id),
+			KEY to_number (to_number),
+			KEY meta_message_id (meta_message_id),
+			KEY status (status),
+			UNIQUE KEY idempotency_key (idempotency_key)
+		) $charset_collate;";
+		dbDelta( $sql_outbound );
 	}
 
 	/**

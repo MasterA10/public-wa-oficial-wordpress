@@ -192,9 +192,11 @@ class MetaApiClient {
 
         if ($code >= 400 || isset($body['error'])) {
             return [
-                'success' => false,
-                'error' => $body['error']['message'] ?? 'Erro na Meta API',
-                'code' => $body['error']['code'] ?? $code
+                'success'    => false,
+                'error'      => $body['error']['message'] ?? 'Erro na Meta API',
+                'code'       => $body['error']['code'] ?? $code,
+                'meta_error' => $body['error'] ?? null,
+                'raw'        => $body ?: null,
             ];
         }
 

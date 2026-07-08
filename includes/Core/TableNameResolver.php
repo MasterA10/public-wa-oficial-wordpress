@@ -67,6 +67,30 @@ class TableNameResolver {
         return self::get_table_name( 'auth_code_attempts' );
     }
 
+    public static function getRouterApiTokensTable() {
+        return self::get_table_name( 'router_api_tokens' );
+    }
+
+    public static function getRoutesTable() {
+        return self::get_table_name( 'routes' );
+    }
+
+    public static function getOutboxDeliveriesTable() {
+        return self::get_table_name( 'outbox_deliveries' );
+    }
+
+    public static function getOnboardingRegistrationsTable() {
+        return self::get_table_name( 'onboarding_registrations' );
+    }
+
+    public static function getOnboardingReconciliationJobsTable() {
+        return self::get_table_name( 'onboarding_reconciliation_jobs' );
+    }
+
+    public static function getOutboundMessagesTable() {
+        return self::get_table_name( 'outbound_messages' );
+    }
+
 	/**
 	 * List of all plugin tables.
 	 *
@@ -89,6 +113,7 @@ class TableNameResolver {
 			'media',
 			'webhook_events',
 			'audit_logs',
+			'meta_api_logs',
 			'settings',
 			'onboarding_sessions',
 			'health_checks',
@@ -99,6 +124,12 @@ class TableNameResolver {
 			'meta_oauth_logs',
 			'meta_deauthorize_logs',
 			'data_deletion_requests',
+			'router_api_tokens',
+			'routes',
+			'outbox_deliveries',
+			'onboarding_registrations',
+			'onboarding_reconciliation_jobs',
+			'outbound_messages',
 		];
 	}
 }

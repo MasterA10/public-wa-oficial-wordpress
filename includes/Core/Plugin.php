@@ -64,13 +64,23 @@ class Plugin {
 			add_rewrite_rule( '^app/login/?$', 'index.php?was_app_page=login', 'top' );
 			add_rewrite_rule( '^app/dashboard/?$', 'index.php?was_app_page=dashboard', 'top' );
 			add_rewrite_rule( '^app/(.+)/?$', 'index.php?was_app_page=$matches[1]', 'top' );
+			add_rewrite_rule( '^health/?$', 'index.php?was_router_path=health', 'top' );
+			add_rewrite_rule( '^healthz/?$', 'index.php?was_router_path=healthz', 'top' );
+			add_rewrite_rule( '^healthcheck/?$', 'index.php?was_router_path=healthcheck', 'top' );
+			add_rewrite_rule( '^internal/health/?$', 'index.php?was_router_path=internal/health', 'top' );
+			add_rewrite_rule( '^auth/login/?$', 'index.php?was_router_path=auth/login', 'top' );
+			add_rewrite_rule( '^auth/me/?$', 'index.php?was_router_path=auth/me', 'top' );
+			add_rewrite_rule( '^v1/(.+)/?$', 'index.php?was_router_path=v1/$matches[1]', 'top' );
+			add_rewrite_rule( '^admin-api/(.+)/?$', 'index.php?was_router_path=admin-api/$matches[1]', 'top' );
+			add_rewrite_rule( '^webhooks/meta/?$', 'index.php?was_router_path=webhooks/meta', 'top' );
+			add_rewrite_rule( '^webhooks/meta/verify/?$', 'index.php?was_router_path=webhooks/meta/verify', 'top' );
             
             // Raw Webhook Rule - URL Única para evitar cache do servidor
             add_rewrite_rule( '^was-meta-check-99/?$', 'index.php?was_meta_webhook=1', 'top' );
             
             // Force flush if rule is missing (bulletproof for sync)
             $rules = get_option( 'rewrite_rules' );
-            if ( ! is_array( $rules ) || ! isset( $rules['^was-meta-check-99/?$'] ) ) {
+            if ( ! is_array( $rules ) || ! isset( $rules['^was-meta-check-99/?$'] ) || ! isset( $rules['^auth/login/?$'] ) || ! isset( $rules['^auth/me/?$'] ) ) {
                 flush_rewrite_rules( false );
             }
 		}, 99 );
@@ -86,11 +96,15 @@ class Plugin {
 		add_filter( 'query_vars', function( $vars ) {
 			$vars[] = 'was_app_page';
             $vars[] = 'was_meta_webhook';
+			$vars[] = 'was_router_path';
 			return $vars;
 		} );
 
 		add_action( 'template_redirect', [ $this, 'handle_app_routing' ] );
         add_action( 'template_redirect', [ $this, 'handle_raw_webhook' ] );
+		add_action( 'template_redirect', function() {
+			( new \WAS\Router\RawRequestDispatcher() )->maybe_dispatch();
+		} );
 
         // Landing Page on Root
         add_filter( 'template_include', function( $template ) {
@@ -147,6 +161,9 @@ class Plugin {
 	 */
 	private function register_hooks() {
 		add_action( 'rest_api_init', [ \WAS\REST\Routes::class, 'register' ] );
+		add_action( 'rest_api_init', function() {
+			( new \WAS\Router\RouterApiController() )->register_routes();
+		} );
 
         // Legal Pages Hooks (Template Redirect)
         \WAS\Compliance\LegalPagesGenerator::boot();
@@ -158,6 +175,30 @@ class Plugin {
 
 		if ( is_admin() ) {
 			\WAS\Admin\Menu::getInstance()->init();
+		}
+
+		add_action( 'was_router_process_outbox', function() {
+			( new \WAS\Router\OutboxService() )->process_due( 25 );
+		} );
+
+		add_action( 'was_router_sync_template_statuses', function() {
+			( new \WAS\Router\TemplateRouterService() )->sync_pending_template_statuses( 50 );
+		} );
+
+		add_action( 'was_router_process_onboarding_reconciliation', function() {
+			( new \WAS\Router\OnboardingService() )->process_pending_reconciliation_jobs( 10 );
+		} );
+
+		if ( ! wp_next_scheduled( 'was_router_process_outbox' ) ) {
+			wp_schedule_event( time() + 60, 'hourly', 'was_router_process_outbox' );
+		}
+
+		if ( ! wp_next_scheduled( 'was_router_sync_template_statuses' ) ) {
+			wp_schedule_event( time() + 120, 'hourly', 'was_router_sync_template_statuses' );
+		}
+
+		if ( ! wp_next_scheduled( 'was_router_process_onboarding_reconciliation' ) ) {
+			wp_schedule_event( time() + 180, 'hourly', 'was_router_process_onboarding_reconciliation' );
 		}
 	}
 

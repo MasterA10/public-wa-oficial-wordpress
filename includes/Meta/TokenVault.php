@@ -89,12 +89,16 @@ class TokenVault {
             throw new \Exception('Chave de criptografia WAS_ENCRYPTION_KEY não definida.');
         }
 
-        $decoded = base64_decode($encrypted_value);
+        $decoded = base64_decode($encrypted_value, true);
         if ($decoded === false) {
             return '';
         }
 
         $iv_length = openssl_cipher_iv_length(self::METHOD);
+        if (strlen($decoded) <= $iv_length) {
+            throw new \Exception('Valor criptografado invalido ou incompleto.');
+        }
+
         $iv = substr($decoded, 0, $iv_length);
         $encrypted = substr($decoded, $iv_length);
 

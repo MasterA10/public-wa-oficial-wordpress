@@ -18,7 +18,19 @@ class Activator {
         \WAS\Compliance\LegalPagesGenerator::generateAll();
 
         // 3. Registrar versão do banco
-        update_option('was_db_version', WAS_VERSION);
+        update_option('was_db_version', WAS_DB_VERSION);
+
+        if ( ! wp_next_scheduled( 'was_router_process_outbox' ) ) {
+            wp_schedule_event( time() + 60, 'hourly', 'was_router_process_outbox' );
+        }
+
+        if ( ! wp_next_scheduled( 'was_router_sync_template_statuses' ) ) {
+            wp_schedule_event( time() + 120, 'hourly', 'was_router_sync_template_statuses' );
+        }
+
+        if ( ! wp_next_scheduled( 'was_router_process_onboarding_reconciliation' ) ) {
+            wp_schedule_event( time() + 180, 'hourly', 'was_router_process_onboarding_reconciliation' );
+        }
 
         // 4. Flush rewrite rules for /app/ routes
         flush_rewrite_rules();
