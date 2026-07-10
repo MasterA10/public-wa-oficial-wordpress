@@ -6,9 +6,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$repository = new \WAS\Meta\MetaAppRepository();
-$app = $repository->get_active_app();
-$app_id = $app ? $app->app_id : '';
 ?>
 <style>
     .was-security-modal {
@@ -207,87 +204,8 @@ $app_id = $app ? $app->app_id : '';
                 <p class="submit">
                     <button type="button" id="was-btn-save-embedded" class="button button-primary">Salvar Configuração de Cadastro</button>
                     <a id="was-start-embedded-signup" href="#" class="button button-secondary" style="margin-left: 10px;" target="_blank">Iniciar Cadastro Incorporado</a>
-                    <button type="button" id="was-sdk-login" class="button button-secondary" style="margin-left: 10px;">Login with Facebook (SDK)</button>
                 </p>
-
-                <div id="was-fb-debug-box" style="margin-top: 20px; display: none;">
-                    <h3>Facebook Login Result (Debug)</h3>
-                    <pre id="was-fb-result" style="background: #f1f5f9; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; border: 1px solid #cbd5e1;"></pre>
-                </div>
             </form>
         </div>
     </div>
-
-    <?php if ($app_id): ?>
-    <script>
-    // Carregamento do SDK do Facebook
-    window.fbAsyncInit = function() {
-        FB.init({
-            appId      : '<?php echo esc_js($app_id); ?>',
-            cookie     : true,
-            xfbml      : true,
-            version    : 'v25.0'
-        });
-
-        FB.AppEvents.logPageView();
-    };
-
-    (function(d, s, id){
-        var js, fjs = d.getElementsByTagName(s)[0];
-        if (d.getElementById(id)) {return;}
-        js = d.createElement(s); js.id = id;
-        js.src = "https://connect.facebook.net/en_US/sdk.js";
-        fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-
-    // Função de Login via SDK (conforme solicitado pelo usuário)
-    function wasLoginWithFacebookSDK() {
-        console.log('WAS: SDK Login Button Clicked (Meta Settings)');
-
-        if (typeof FB === 'undefined') {
-            console.error('WAS Error: Facebook SDK (FB) is not defined. Check ad-blockers or connection.');
-            alert('O SDK do Facebook ainda não foi carregado. Verifique se há algum bloqueador de anúncios ativo ou se você está em um ambiente seguro (HTTPS).');
-            return;
-        }
-
-        FB.login(function(response) {
-            console.log('Login response:', response);
-            const resultBox = document.getElementById('was-fb-debug-box');
-            const resultPre = document.getElementById('was-fb-result');
-
-            if (response.authResponse) {
-                const accessToken = response.authResponse.accessToken;
-                const userID = response.authResponse.userID;
-
-                // Mascarar o token para exibição segura
-                const maskedToken = accessToken.substring(0, 10) + '...' + accessToken.substring(accessToken.length - 5);
-
-                // Busca dados básicos do usuário
-                FB.api('/me', { fields: 'id,name,email' }, function(userInfo) {
-                    console.log('User info:', userInfo);
-
-                    if (resultBox && resultPre) {
-                        resultBox.style.display = 'block';
-                        resultPre.textContent = JSON.stringify({
-                            status: 'Connected',
-                            userID: userID,
-                            accessToken: maskedToken,
-                            userInfo: userInfo,
-                            grantedScopes: response.authResponse.grantedScopes
-                        }, null, 2);
-                    }
-                });
-
-            } else {
-                alert('Usuário cancelou o login ou não autorizou.');
-            }
-        }, {
-            scope: 'public_profile,email,business_management,whatsapp_business_management,whatsapp_business_messaging',
-            return_scopes: true
-        });
-    }
-
-    document.getElementById('was-sdk-login')?.addEventListener('click', wasLoginWithFacebookSDK);
-    </script>
-    <?php endif; ?>
 </div>

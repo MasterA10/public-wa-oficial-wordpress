@@ -14,10 +14,6 @@ $account_repo = new \WAS\WhatsApp\WhatsAppAccountRepository();
 $waba_account = $account_repo->findForTenant($tenant_id);
 $saved_waba_id = $waba_account ? $waba_account->waba_id : '';
 
-$repository = new \WAS\Meta\MetaAppRepository();
-$app = $repository->get_active_app();
-$app_id = $app ? $app->app_id : '';
-
 // Flag para mostrar onboarding apenas no momento do login
 $show_onboarding = isset($_GET['onboarding']) && '1' === $_GET['onboarding'];
 
@@ -33,9 +29,6 @@ if ($show_onboarding):
         <div class="was-onboarding-actions" id="was-connect-actions">
             <button id="was-launch-signup" class="button button-primary" style="background-color: #1877f2; border-color: #1877f2; padding: 12px 24px; height: auto;">
                 <span class="dashicons dashicons-whatsapp" style="margin-right: 8px; vertical-align: middle;"></span> Embedded Signup
-            </button>
-            <button id="was-sdk-login" class="button button-secondary" style="padding: 12px 24px; height: auto;">
-                <span class="dashicons dashicons-facebook" style="margin-right: 8px; vertical-align: middle;"></span> Login with Facebook (SDK)
             </button>
         </div>
 
@@ -219,78 +212,5 @@ if ($show_onboarding):
     </div>
 </div>
 <?php endif; ?>
-
-<!-- Log de Auditoria para Meta Review -->
-<div id="was-fb-debug-box" style="margin: 20px 0; text-align: left; background: white; border: 1px solid var(--slate-200); border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h3 style="margin: 0 0 16px; font-size: 1rem; color: var(--slate-800); display: flex; align-items: center; gap: 8px;">
-        <span class="dashicons dashicons-code-standards" style="color: var(--primary);"></span> Log de Auditoria de Conexão (Meta)
-    </h3>
-    <pre id="was-fb-result" style="background: #0f172a; color: #38bdf8; padding: 20px; border-radius: 12px; overflow-x: auto; font-size: 12px; border: 1px solid #1e293b; font-family: 'JetBrains Mono', monospace; line-height: 1.5; min-height: 100px;">// Aguardando interação com o fluxo da Meta...
-// Os resultados da conexão aparecerão aqui em tempo real.</pre>
-</div>
-
-<?php if ($app_id): ?>
-<script>
-    // Carregamento do SDK do Facebook
-    window.fbAsyncInit = function() {
-        if (typeof FB !== 'undefined') {
-            FB.init({
-                appId      : '<?php echo esc_js($app_id); ?>',
-                cookie     : true,
-                xfbml      : true,
-                version    : 'v25.0'
-            });
-            FB.AppEvents.logPageView();
-        }
-    };
-
-    (function(d, s, id){
-        var js, fjs = d.getElementsByTagName(s)[0];
-        if (d.getElementById(id)) {return;}
-        js = d.createElement(s); js.id = id;
-        js.src = "https://connect.facebook.net/en_US/sdk.js";
-        fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-
-    // Função de Login via SDK
-    function wasLoginWithFacebookSDK() {
-        if (typeof FB === 'undefined') {
-            alert('O SDK do Facebook ainda não foi carregado. Verifique sua conexão.');
-            return;
-        }
-
-        FB.login(function(response) {
-            const resultBox = document.getElementById('was-fb-debug-box');
-            const resultPre = document.getElementById('was-fb-result');
-
-            if (response.authResponse) {
-                const accessToken = response.authResponse.accessToken;
-                FB.api('/me', { fields: 'id,name,email' }, function(userInfo) {
-                    if (resultBox && resultPre) {
-                        resultBox.style.display = 'block';
-                        resultPre.textContent = JSON.stringify({
-                            status: 'Connected',
-                            userInfo: userInfo,
-                            grantedScopes: response.authResponse.grantedScopes
-                        }, null, 2);
-                    }
-                    
-                    // Mostrar a tela de sucesso
-                    wasShowOnboardingSuccess();
-                });
-
-            } else {
-                alert('Usuário cancelou o login ou não autorizou.');
-            }
-        }, {
-            scope: 'public_profile,email,business_management,whatsapp_business_management,whatsapp_business_messaging',
-            return_scopes: true
-        });
-    }
-
-    document.getElementById('was-sdk-login')?.addEventListener('click', wasLoginWithFacebookSDK);
-</script>
-<?php endif; ?>
-
 
 

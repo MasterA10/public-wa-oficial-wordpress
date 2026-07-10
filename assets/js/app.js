@@ -2178,16 +2178,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 signupData.business_id = data.data.business_id || null;
                                 console.log('Embedded Signup Data Captured:', signupData);
                                 
-                                // Atualizar o log visual no dashboard se existir
-                                const resultPre = document.getElementById('was-fb-result');
-                                if (resultPre) {
-                                    resultPre.textContent = JSON.stringify({
-                                        event: 'WA_EMBEDDED_SIGNUP_FINISH',
-                                        timestamp: new Date().toISOString(),
-                                        data: signupData
-                                    }, null, 2);
-                                }
-
                                 // Mostrar a tela de sucesso no Dashboard
                                 if (typeof wasShowOnboardingSuccess === 'function') {
                                     wasShowOnboardingSuccess(signupData);
