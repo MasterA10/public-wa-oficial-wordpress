@@ -51,6 +51,16 @@ $waba_id = $wpdb->get_var($wpdb->prepare("SELECT waba_id FROM $acc_table WHERE t
 // Buscar URL do Cadastro Incorporado
 $settings_table = \WAS\Core\TableNameResolver::get_table_name('settings');
 $embedded_signup_url = $wpdb->get_var($wpdb->prepare("SELECT setting_value FROM $settings_table WHERE tenant_id = %d AND setting_key = 'embedded_signup_url'", $tenant_id));
+$normalized_signup_url = $this->normalize_embedded_signup_url($embedded_signup_url);
+
+if ($normalized_signup_url && $normalized_signup_url !== $embedded_signup_url) {
+    $wpdb->update(
+        $settings_table,
+        ['setting_value' => $normalized_signup_url],
+        ['tenant_id' => $tenant_id, 'setting_key' => 'embedded_signup_url']
+    );
+    $embedded_signup_url = $normalized_signup_url;
+}
 
         // Tenta descriptografar o segredo se existir
         $app_secret_masked = '';
@@ -153,7 +163,11 @@ $embedded_signup_url = $wpdb->get_var($wpdb->prepare("SELECT setting_value FROM 
             if (isset($params['embedded_signup_url'])) {
                 global $wpdb;
                 $settings_table = \WAS\Core\TableNameResolver::get_table_name('settings');
-                $url = sanitize_text_field($params['embedded_signup_url']);
+                $url = $this->normalize_embedded_signup_url($params['embedded_signup_url']);
+
+                if (!empty($params['embedded_signup_url']) && empty($url)) {
+                    return new WP_REST_Response(['message' => 'A URL do Cadastro Incorporado é inválida.'], 400);
+                }
                 
                 $existing_setting = $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(*) FROM $settings_table WHERE tenant_id = %d AND setting_key = 'embedded_signup_url'",
@@ -233,6 +247,31 @@ $embedded_signup_url = $wpdb->get_var($wpdb->prepare("SELECT setting_value FROM 
         $account_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $acc_table WHERE tenant_id = %d ORDER BY id ASC LIMIT 1", $tenant_id));
 
         return $account_id ? (int) $account_id : null;
+    }
+
+    /**
+     * Garante que o link do Embedded Signup use o callback OAuth do plugin.
+     * Os demais parâmetros do link, incluindo config_id e extras, são preservados.
+     *
+     * @param string $url URL configurada pelo administrador.
+     * @return string URL normalizada ou vazia quando inválida.
+     */
+    private function normalize_embedded_signup_url($url) {
+        $url = trim((string) $url);
+
+        if ('' === $url) {
+            return '';
+        }
+
+        $parts = wp_parse_url($url);
+        if (empty($parts['scheme']) || empty($parts['host']) || 'https' !== strtolower($parts['scheme'])) {
+            return '';
+        }
+
+        $expected_redirect_uri = rest_url(WAS_REST_NAMESPACE . '/meta/oauth/callback');
+        $normalized = add_query_arg('redirect_uri', $expected_redirect_uri, $url);
+
+        return esc_url_raw($normalized);
     }
 
     /**
