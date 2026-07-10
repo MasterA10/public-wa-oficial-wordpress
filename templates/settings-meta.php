@@ -64,7 +64,7 @@ $app_id = $app ? $app->app_id : '';
                         <th scope="row"><label for="app_secret">App Secret</label></th>
                         <td>
                             <div class="was-security-field-wrapper">
-                                <input name="app_secret" type="text" id="app_secret" value="" class="regular-text" readonly>
+                                <input name="app_secret" type="password" id="app_secret" value="" class="regular-text" autocomplete="new-password" placeholder="Digite para substituir o valor atual">
                                 <button type="button" class="button was-unlock-btn" data-target="app_secret">🔓 Desbloquear</button>
                             </div>
                             <p class="description">O segredo do seu aplicativo. Necessário para validar a assinatura dos webhooks.</p>
@@ -88,7 +88,7 @@ $app_id = $app ? $app->app_id : '';
                         <th scope="row"><label for="meta_access_token">Meta Access Token</label></th>
                         <td>
                             <div class="was-security-field-wrapper" style="align-items: flex-start;">
-                                <textarea name="meta_access_token" id="meta_access_token" class="large-text" rows="4" placeholder="Token gerado no painel da Meta" readonly></textarea>
+                                <textarea name="meta_access_token" id="meta_access_token" class="large-text" rows="4" autocomplete="new-password" placeholder="Digite para substituir o token atual"></textarea>
                                 <button type="button" class="button was-unlock-btn" data-target="meta_access_token">🔓 Desbloquear</button>
                             </div>
                             <p class="description">Token de Acesso (Access Token) gerado na Meta Developers. Será salvo criptografado.</p>
@@ -142,7 +142,7 @@ $app_id = $app ? $app->app_id : '';
                         <th scope="row"><label for="verify_token">Webhook Verify Token</label></th>
                         <td>
                             <div class="was-security-field-wrapper">
-                                <input name="verify_token" type="text" id="verify_token" value="" class="regular-text" readonly>
+                                <input name="verify_token" type="password" id="verify_token" value="" class="regular-text" autocomplete="new-password" placeholder="Digite para substituir o valor atual">
                                 <button type="button" class="button was-unlock-btn" data-target="verify_token">🔓 Desbloquear</button>
                                 <button type="button" id="was-generate-token" class="button">Gerar Novo</button>
                             </div>

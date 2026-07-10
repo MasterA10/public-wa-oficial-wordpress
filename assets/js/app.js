@@ -1996,11 +1996,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || ''; };
 
                 setValue('app_id', data.app_id);
-                setValue('app_secret', data.app_secret);
                 setValue('primary_phone_number_id', data.primary_phone_number_id);
-                setValue('meta_access_token', data.meta_access_token);
                 setValue('waba_id', data.waba_id);
-                setValue('verify_token', data.verify_token);
                 setValue('webhook_url', data.webhook_url);
                 setValue('oauth_callback_url', data.oauth_callback_url);
                 setValue('deauthorize_url', data.deauthorize_url);
