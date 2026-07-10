@@ -247,7 +247,7 @@ if (!defined('ABSPATH')) {
                     
                     <div style="margin-top:20px;">
                         <label><strong>1. Destinatário (WhatsApp ID)</strong></label><br>
-                        <input type="text" id="send-tpl-to" style="width:100%; margin-top:5px;" required placeholder="5511999999999">
+                        <input type="text" id="send-tpl-to" style="width:100%; margin-top:5px;" required placeholder="Número do destinatário com DDI">
                     </div>
 
                     <div id="was-tpl-variables-container" style="margin-top:25px; border-top:1px solid #eee; padding-top:20px;">

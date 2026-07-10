@@ -318,7 +318,7 @@ class AdminMasterApiController {
         // Sanitize for security
         foreach($tokens as $token) {
             unset($token->access_token_encrypted);
-            $token->prefix = $token->token_prefix ?: 'EAAG...';
+            $token->prefix = $token->token_prefix ?: '...';
             $token->length = $token->token_length ?: 0;
         }
 
@@ -360,7 +360,7 @@ class AdminMasterApiController {
         foreach($apps as $app) {
             unset($app->app_secret);
             if (!empty($app->app_secret_encrypted)) {
-                $app->app_secret_masked = 'EAAG...'; // Mocked mask for now
+                $app->app_secret_masked = '...'; // Mocked mask for now
             }
         }
 

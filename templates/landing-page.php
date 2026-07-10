@@ -592,7 +592,6 @@ if (!defined('ABSPATH')) {
                     <ul>
                         <?php $support_email = get_option( 'admin_email', 'support@example.com' ); ?>
                         <li><a href="mailto:<?php echo esc_attr( $support_email ); ?>"><?php echo esc_html( $support_email ); ?></a></li>
-                        <li><a href="https://wa.me/553171183457">Suporte via WhatsApp</a></li>
                     </ul>
                 </div>
             </div>

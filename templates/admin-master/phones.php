@@ -35,7 +35,7 @@ if (!defined('ABSPATH')) exit;
                 <input type="hidden" id="master-test-phone-id">
                 <p>
                     <label>Número de Destino (com DDI)</label><br>
-                    <input type="text" id="master-test-to" class="regular-text" placeholder="5511999999999" required>
+                    <input type="text" id="master-test-to" class="regular-text" placeholder="Número do destinatário com DDI" required>
                 </p>
                 <p class="submit" style="text-align:right;">
                     <button type="button" id="was-master-test-msg-cancel" class="button">Cancelar</button>

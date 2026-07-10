@@ -153,7 +153,7 @@ if (!defined('ABSPATH')) {
                 <div class="support-icon">💬</div>
                 <h3>WhatsApp Oficial</h3>
                 <p>Atendimento rápido para dúvidas sobre a plataforma Plataforma.</p>
-                <a href="https://wa.me/553171183457" class="btn" target="_blank">Abrir Chat</a>
+                <a href="<?php echo esc_url( home_url('/app/login') ); ?>" class="btn">Acessar Plataforma</a>
             </div>
 
             <div class="support-item">

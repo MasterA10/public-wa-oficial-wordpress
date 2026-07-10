@@ -74,21 +74,21 @@ $app_id = $app ? $app->app_id : '';
                         <th scope="row"><label for="waba_id">WABA ID</label></th>
                         <td>
                             <input name="waba_id" type="text" id="waba_id" value="" class="regular-text">
-                            <p class="description">Identificador da Conta WhatsApp Business (ex: 2304943043356575).</p>
+                            <p class="description">Identificador da Conta WhatsApp Business fornecido pela Meta.</p>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="primary_phone_number_id">Phone Number ID Principal</label></th>
                         <td>
                             <input name="primary_phone_number_id" type="text" id="primary_phone_number_id" value="" class="regular-text">
-                            <p class="description">O ID numérico do número de telefone (ex: 792390780632007) encontrado no painel da Meta.</p>
+                            <p class="description">ID do número de telefone encontrado no painel da Meta.</p>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="meta_access_token">Meta Access Token</label></th>
                         <td>
                             <div class="was-security-field-wrapper" style="align-items: flex-start;">
-                                <textarea name="meta_access_token" id="meta_access_token" class="large-text" rows="4" placeholder="EAAL..." readonly></textarea>
+                                <textarea name="meta_access_token" id="meta_access_token" class="large-text" rows="4" placeholder="Token gerado no painel da Meta" readonly></textarea>
                                 <button type="button" class="button was-unlock-btn" data-target="meta_access_token">🔓 Desbloquear</button>
                             </div>
                             <p class="description">Token de Acesso (Access Token) gerado na Meta Developers. Será salvo criptografado.</p>
