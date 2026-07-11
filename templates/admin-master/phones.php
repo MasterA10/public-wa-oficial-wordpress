@@ -5,19 +5,19 @@
 if (!defined('ABSPATH')) exit;
 ?>
 <div class="wrap">
-    <h1>Gerenciamento de Números WhatsApp</h1>
-    <p class="description">Visualize todos os números de telefone registrados na plataforma.</p>
+    <h1>Números WhatsApp</h1>
+    <p class="description">Cada número já aparece junto da WABA. Clique em um número para consultar templates e configurar o encaminhamento dos webhooks para uma URL externa.</p>
 
     <table class="wp-list-table widefat fixed striped" style="margin-top: 20px;">
         <thead>
             <tr>
                 <th>Tenant</th>
+                <th>WABA</th>
                 <th>Phone ID</th>
                 <th>Número</th>
                 <th>Nome Verificado</th>
                 <th>Status</th>
                 <th>Qualidade</th>
-                <th>Padrão</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -25,6 +25,44 @@ if (!defined('ABSPATH')) exit;
             <tr><td colspan="8">Carregando números...</td></tr>
         </tbody>
     </table>
+
+    <section id="was-master-phone-details" style="display:none; margin-top:28px; padding:24px; background:#fff; border:1px solid #dcdcde; border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start;">
+            <div>
+                <h2 id="was-master-phone-title" style="margin-top:0;">Número</h2>
+                <p id="was-master-phone-meta" class="description"></p>
+            </div>
+            <button type="button" id="was-master-phone-close" class="button">Fechar</button>
+        </div>
+
+        <div style="display:flex; gap:8px; border-bottom:1px solid #dcdcde; margin:20px 0;">
+            <button type="button" class="button button-primary was-phone-detail-tab" data-tab="routes">Rotas / Webhooks</button>
+            <button type="button" class="button was-phone-detail-tab" data-tab="templates">Templates</button>
+        </div>
+
+        <div id="was-phone-detail-routes">
+            <h3>Rotas de encaminhamento</h3>
+            <p class="description">Uma rota pega o webhook recebido da Meta para este número e envia o payload para uma URL externa.</p>
+            <form id="was-master-route-form" style="display:grid; grid-template-columns:1fr 2fr 1fr auto; gap:10px; align-items:end; margin:18px 0;">
+                <label>Nome<br><input id="master-route-name" type="text" placeholder="Meu backend"></label>
+                <label>URL externa de destino<br><input id="master-route-url" type="url" required placeholder="https://app.exemplo.com/webhooks/whatsapp"></label>
+                <label>Segredo (opcional)<br><input id="master-route-secret" type="password" placeholder="Assinatura"></label>
+                <button type="submit" class="button button-primary">Criar rota</button>
+            </form>
+            <div id="was-master-routes-list"></div>
+        </div>
+
+        <div id="was-phone-detail-templates" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <div>
+                    <h3>Templates deste número</h3>
+                    <p class="description">Templates pertencentes à WABA vinculada a este número.</p>
+                </div>
+                <button type="button" id="was-master-sync-phone-templates" class="button">Sincronizar com Meta</button>
+            </div>
+            <div id="was-master-phone-templates-list"></div>
+        </div>
+    </section>
 
     <!-- Modal Test Message -->
     <div id="was-master-test-msg-modal" class="was-modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">

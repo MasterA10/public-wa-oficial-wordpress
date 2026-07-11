@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
 ?>
 <div class="wrap">
     <h1>Painel Master Administrativo</h1>
-    <p class="description">Gerenciamento centralizado de todos os tenants, apps Meta e saúde da operação.</p>
+    <p class="description">Gerenciamento centralizado de tenants, números WhatsApp, rotas e saúde da operação.</p>
 
     <div class="was-master-dashboard" style="margin-top: 20px;">
         <div class="was-stats-grid">
@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
             </div>
         </div>
 
-        <div style="margin-top: 30px; display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        <div style="margin-top: 30px; display: grid; grid-template-columns: 1fr; gap: 20px;">
             <div class="card">
                 <h2>Alertas Operacionais</h2>
                 <table class="wp-list-table widefat fixed striped">
@@ -54,12 +54,6 @@ if (!defined('ABSPATH')) exit;
                 </table>
             </div>
 
-            <div class="card">
-                <h2>Apps Meta Ativos</h2>
-                <div id="master-active-apps-list">
-                    <p>Carregando apps...</p>
-                </div>
-            </div>
         </div>
     </div>
 </div>

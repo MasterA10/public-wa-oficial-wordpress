@@ -34,17 +34,13 @@ class Menu {
         $page_mapping = [
             'toplevel_page_was-dashboard' => 'dashboard',
             'whatsapp-saas_page_was-inbox' => 'inbox',
-            'whatsapp-saas_page_was-templates' => 'templates',
             'whatsapp-saas_page_was-settings-meta' => 'settings-meta',
             'whatsapp-saas_page_was-settings-whatsapp' => 'settings-whatsapp',
             'whatsapp-saas_page_was-logs' => 'logs',
             'toplevel_page_was-master-dashboard' => 'master-dashboard',
-            'was-master_page_was-master-meta-apps' => 'master-meta-apps',
             'was-master_page_was-master-tenants' => 'master-tenants',
-            'was-master_page_was-master-wabas' => 'master-wabas',
             'was-master_page_was-master-phones' => 'master-phones',
             'was-master_page_was-master-onboardings' => 'master-onboardings',
-            'was-master_page_was-master-templates' => 'master-templates',
             'was-master_page_was-master-webhooks' => 'master-webhooks',
             'was-master_page_was-master-tokens' => 'master-tokens',
             'was-master_page_was-master-review' => 'master-review',
@@ -74,12 +70,9 @@ class Menu {
             );
 
             add_submenu_page('was-master-dashboard', 'Visão Geral', 'Visão Geral', $master_cap, 'was-master-dashboard', [$this, 'render_master_dashboard']);
-            add_submenu_page('was-master-dashboard', 'Apps Meta', 'Apps Meta', 'was_platform_admin', 'was-master-meta-apps', [$this, 'render_master_meta_apps']);
             add_submenu_page('was-master-dashboard', 'Clientes / Tenants', 'Clientes', $master_cap, 'was-master-tenants', [$this, 'render_master_tenants']);
-            add_submenu_page('was-master-dashboard', 'WABAs', 'WABAs', $master_cap, 'was-master-wabas', [$this, 'render_master_wabas']);
             add_submenu_page('was-master-dashboard', 'Números WhatsApp', 'Números', $master_cap, 'was-master-phones', [$this, 'render_master_phones']);
             add_submenu_page('was-master-dashboard', 'Onboardings', 'Onboardings', $master_cap, 'was-master-onboardings', [$this, 'render_master_onboardings']);
-            add_submenu_page('was-master-dashboard', 'Templates Globais', 'Templates', $master_cap, 'was-master-templates', [$this, 'render_master_templates']);
             add_submenu_page('was-master-dashboard', 'Webhooks', 'Webhooks', 'was_platform_admin', 'was-master-webhooks', [$this, 'render_master_webhooks']);
             add_submenu_page('was-master-dashboard', 'Tokens e Permissões', 'Tokens', 'was_platform_admin', 'was-master-tokens', [$this, 'render_master_tokens']);
             add_submenu_page('was-master-dashboard', 'App Review / Compliance', 'Review', 'was_manage_compliance', 'was-master-review', [$this, 'render_master_review']);
@@ -114,15 +107,6 @@ class Menu {
             'was_view_inbox',
             'was-inbox',
             [$this, 'render_inbox']
-        );
-
-        add_submenu_page(
-            'was-dashboard',
-            'Templates',
-            'Templates',
-            'was_manage_templates',
-            'was-templates',
-            [$this, 'render_templates_page']
         );
 
         add_submenu_page(

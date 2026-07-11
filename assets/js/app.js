@@ -349,13 +349,70 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('was-master-test-msg-modal');
         const form = document.getElementById('was-master-test-msg-form');
         const cancelBtn = document.getElementById('was-master-test-msg-cancel');
+        const details = document.getElementById('was-master-phone-details');
+        const detailTitle = document.getElementById('was-master-phone-title');
+        const detailMeta = document.getElementById('was-master-phone-meta');
+        const routesList = document.getElementById('was-master-routes-list');
+        const templatesList = document.getElementById('was-master-phone-templates-list');
+        const routeForm = document.getElementById('was-master-route-form');
+        const syncTemplatesBtn = document.getElementById('was-master-sync-phone-templates');
+        let selectedPhoneId = null;
+
+        const escape = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[char]));
+
+        const renderRoutes = (routes = []) => {
+            if (!routesList) return;
+            routesList.innerHTML = routes.length ? routes.map(route => `
+                <div style="display:flex; justify-content:space-between; gap:16px; align-items:center; padding:12px; margin:8px 0; border:1px solid #dcdcde; border-radius:6px;">
+                    <div>
+                        <strong>${escape(route.name || 'Rota')}</strong><br>
+                        <code>${escape(route.target_url)}</code><br>
+                        <small>${route.is_active ? 'Ativa' : 'Desativada'} · ${route.max_retries} tentativas · timeout ${route.timeout_ms}ms</small>
+                    </div>
+                    <button type="button" class="button was-delete-route" data-id="${route.id}">Desativar</button>
+                </div>`).join('') : '<p>Nenhuma rota configurada para este número.</p>';
+
+            routesList.querySelectorAll('.was-delete-route').forEach(button => button.addEventListener('click', async () => {
+                if (!confirm('Desativar esta rota?')) return;
+                try {
+                    await wasApiFetch(`/admin/routes/${button.dataset.id}`, 'DELETE');
+                    await loadPhoneDetails(selectedPhoneId);
+                } catch (error) { alert(error.message); }
+            }));
+        };
+
+        const renderTemplates = (templates = []) => {
+            if (!templatesList) return;
+            templatesList.innerHTML = templates.length ? `
+                <table class="wp-list-table widefat fixed striped"><thead><tr><th>Nome</th><th>Categoria</th><th>Idioma</th><th>Status</th><th>Meta ID</th></tr></thead><tbody>
+                ${templates.map(template => `<tr><td><strong>${escape(template.name)}</strong></td><td>${escape(template.category)}</td><td>${escape(template.language)}</td><td>${escape(template.status)}</td><td><code>${escape(template.meta_template_id || '-')}</code></td></tr>`).join('')}
+                </tbody></table>` : '<p>Nenhum template sincronizado para este número.</p>';
+        };
+
+        const loadPhoneDetails = async (phoneId) => {
+            if (!phoneId || !details) return;
+            selectedPhoneId = phoneId;
+            try {
+                const data = await wasApiFetch(`/admin/phone-numbers/${phoneId}/details`);
+                const phone = data.phone || {};
+                detailTitle.textContent = phone.display_phone_number || 'Número WhatsApp';
+                detailMeta.innerHTML = `<strong>Tenant:</strong> ${escape(phone.tenant_name || phone.tenant_id)} · <strong>WABA:</strong> ${escape(phone.waba_name || '-') } (${escape(phone.waba_id || '-')}) · <strong>Phone ID:</strong> ${escape(phone.phone_number_id)}`;
+                renderRoutes(data.routes || []);
+                renderTemplates(data.templates || []);
+                details.style.display = 'block';
+                details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (error) { alert(error.message); }
+        };
 
         const loadPhones = async () => {
             try {
                 const data = await wasApiFetch('/admin/phone-numbers');
                 tb.innerHTML = (data || []).map(p => `
-                    <tr>
+                    <tr class="was-master-phone-row" data-id="${p.id}" style="cursor:pointer;">
                         <td><strong>${p.tenant_name}</strong><br><small>ID: ${p.tenant_id}</small></td>
+                        <td><strong>${p.waba_name || '-'}</strong><br><small>${p.waba_id || '-'}</small></td>
                         <td><code>${p.phone_number_id}</code></td>
                         <td>${p.display_phone_number || '-'}</td>
                         <td>${p.verified_name || '-'}</td>
@@ -363,7 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${p.status.toUpperCase()}
                         </span></td>
                         <td>${p.quality_rating || 'UNKNOWN'}</td>
-                        <td>${p.is_default ? '✅' : '-'}</td>
                         <td>
                             <button class="button test-msg" data-id="${p.id}">Testar Envio</button>
                         </td>
@@ -371,9 +427,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 `).join('') || '<tr><td colspan="8">Nenhum número encontrado.</td></tr>';
 
                 document.querySelectorAll('.test-msg').forEach(b => b.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     document.getElementById('master-test-phone-id').value = e.target.dataset.id;
                     modal.style.display = 'block';
                 }));
+                document.querySelectorAll('.was-master-phone-row').forEach(row => row.addEventListener('click', () => loadPhoneDetails(row.dataset.id)));
 
             } catch (err) { tb.innerHTML = '<tr><td colspan="8">Erro ao carregar números.</td></tr>'; }
         };
@@ -389,6 +447,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(res.message);
                 modal.style.display = 'none';
             } catch (err) { alert(err.message); }
+        });
+
+        document.querySelectorAll('.was-phone-detail-tab').forEach(tab => tab.addEventListener('click', () => {
+            const routes = tab.dataset.tab === 'routes';
+            document.getElementById('was-phone-detail-routes').style.display = routes ? 'block' : 'none';
+            document.getElementById('was-phone-detail-templates').style.display = routes ? 'none' : 'block';
+            document.querySelectorAll('.was-phone-detail-tab').forEach(item => item.classList.toggle('button-primary', item === tab));
+        }));
+
+        document.getElementById('was-master-phone-close')?.addEventListener('click', () => {
+            details.style.display = 'none';
+            selectedPhoneId = null;
+        });
+
+        routeForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!selectedPhoneId) return;
+            try {
+                await wasApiFetch(`/admin/phone-numbers/${selectedPhoneId}/routes`, 'POST', {
+                    name: document.getElementById('master-route-name').value,
+                    target_url: document.getElementById('master-route-url').value,
+                    secret: document.getElementById('master-route-secret').value,
+                    is_active: true
+                });
+                routeForm.reset();
+                await loadPhoneDetails(selectedPhoneId);
+                alert('Rota criada. Os próximos webhooks deste número serão encaminhados para a URL externa.');
+            } catch (error) { alert(error.message); }
+        });
+
+        syncTemplatesBtn?.addEventListener('click', async () => {
+            if (!selectedPhoneId) return;
+            syncTemplatesBtn.disabled = true;
+            try {
+                const result = await wasApiFetch(`/admin/phone-numbers/${selectedPhoneId}/templates/sync`, 'POST');
+                await loadPhoneDetails(selectedPhoneId);
+                alert(result.message || 'Templates sincronizados.');
+            } catch (error) { alert(error.message); } finally { syncTemplatesBtn.disabled = false; }
         });
 
         loadPhones();
@@ -618,21 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const [id, value] of Object.entries(mapping)) {
                 const el = document.getElementById(id);
                 if (el) el.textContent = value ?? 0;
-            }
-
-            // Load Master Apps
-            const appsData = await wasApiFetch('/admin/meta-apps');
-            const appsList = document.getElementById('master-active-apps-list');
-            if (appsList && appsData) {
-                appsList.innerHTML = appsData.map(app => `
-                    <div style="padding: 10px; border-bottom: 1px solid #eee;">
-                        <strong>${app.name}</strong><br>
-                        <small>ID: ${app.app_id} | ${app.environment}</small><br>
-                        <span class="was-status-badge" style="background: ${app.status === 'active' ? '#dcfce7' : '#fee2e2'}; color: ${app.status === 'active' ? '#166534' : '#991b1b'}; font-size: 0.7rem; padding: 2px 6px;">
-                            ${app.status.toUpperCase()}
-                        </span>
-                    </div>
-                `).join('') || '<p>Nenhum app cadastrado.</p>';
             }
 
             // Mocked Alerts for NOC feel

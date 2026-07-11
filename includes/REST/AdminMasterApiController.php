@@ -67,7 +67,7 @@ class AdminMasterApiController {
 			'permission_callback' => [ $this, 'permissions_check' ],
 		] );
 
-        register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/test-message', [
+		register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/test-message', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'test_phone_message' ],
             'permission_callback' => [ $this, 'permissions_check' ],
@@ -77,6 +77,37 @@ class AdminMasterApiController {
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_onboardings' ],
 			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
+		register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/details', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'get_phone_details' ],
+			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
+		register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/routes', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'create_phone_route' ],
+			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
+		register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/templates/sync', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'sync_phone_templates' ],
+			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
+		register_rest_route( 'was/v1', '/admin/routes/(?P<id>\d+)', [
+			[
+				'methods'             => [ 'PATCH', 'PUT' ],
+				'callback'            => [ $this, 'update_route' ],
+				'permission_callback' => [ $this, 'permissions_check' ],
+			],
+			[
+				'methods'             => 'DELETE',
+				'callback'            => [ $this, 'delete_route' ],
+				'permission_callback' => [ $this, 'permissions_check' ],
+			],
 		] );
 
 		register_rest_route( 'was/v1', '/admin/templates', [
@@ -229,20 +260,105 @@ class AdminMasterApiController {
     /**
      * Get list of Phone Numbers.
      */
-    public function get_phones( $request ) {
+	public function get_phones( $request ) {
         global $wpdb;
         $table_phones  = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+        $table_wabas   = TableNameResolver::get_table_name( 'whatsapp_accounts' );
         $table_tenants = TableNameResolver::get_table_name( 'tenants' );
 
         $phones = $wpdb->get_results( "
-            SELECT p.*, t.name as tenant_name 
+            SELECT p.*, a.waba_id, a.name as waba_name, a.status as waba_status, t.name as tenant_name
             FROM $table_phones p
+            LEFT JOIN $table_wabas a ON a.id = p.whatsapp_account_id
             LEFT JOIN $table_tenants t ON p.tenant_id = t.id
             ORDER BY p.created_at DESC
         " );
 
-        return new WP_REST_Response( $phones, 200 );
-    }
+		return new WP_REST_Response( $phones, 200 );
+	}
+
+	public function get_phone_details( $request ) {
+		$phone = $this->find_master_phone( (int) $request->get_param( 'id' ) );
+		if ( ! $phone ) {
+			return new \WP_Error( 'phone_number_not_found', 'Numero nao encontrado.', [ 'status' => 404 ] );
+		}
+
+		$routes = ( new \WAS\Router\RouteRepository() )->list( [
+			'tenant_id'       => (int) $phone->tenant_id,
+			'phone_number_id' => (int) $phone->id,
+		] );
+		$templates = ( new \WAS\Router\AdminRouterService() )->list_phone_number_templates( (int) $phone->id );
+		if ( is_wp_error( $templates ) ) {
+			$templates = [];
+		}
+
+		return new WP_REST_Response( [
+			'phone'     => $phone,
+			'routes'    => array_map( [ $this, 'public_route' ], $routes ),
+			'templates' => $templates,
+		], 200 );
+	}
+
+	public function create_phone_route( $request ) {
+		$phone = $this->find_master_phone( (int) $request->get_param( 'id' ) );
+		if ( ! $phone ) {
+			return new \WP_Error( 'phone_number_not_found', 'Numero nao encontrado.', [ 'status' => 404 ] );
+		}
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : [];
+		$params['tenant_id'] = (int) $phone->tenant_id;
+		$params['phone_number_id'] = (int) $phone->id;
+		$route = ( new \WAS\Router\AdminRouterService() )->create_route( $params );
+		return is_wp_error( $route ) ? $route : new WP_REST_Response( $this->public_route( $route ), 201 );
+	}
+
+	public function sync_phone_templates( $request ) {
+		$phone = $this->find_master_phone( (int) $request->get_param( 'id' ) );
+		if ( ! $phone ) {
+			return new \WP_Error( 'phone_number_not_found', 'Numero nao encontrado.', [ 'status' => 404 ] );
+		}
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : [];
+		$result = ( new \WAS\Router\AdminRouterService() )->sync_phone_number_templates( (int) $phone->id, $params );
+		return is_wp_error( $result ) ? $result : new WP_REST_Response( $result, 200 );
+	}
+
+	public function update_route( $request ) {
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : [];
+		$route = ( new \WAS\Router\RouteRepository() )->update( (int) $request->get_param( 'id' ), $params );
+		return is_wp_error( $route ) ? $route : new WP_REST_Response( $this->public_route( $route ), 200 );
+	}
+
+	public function delete_route( $request ) {
+		$route = ( new \WAS\Router\RouteRepository() )->archive( (int) $request->get_param( 'id' ) );
+		return is_wp_error( $route ) ? $route : new WP_REST_Response( $this->public_route( $route ), 200 );
+	}
+
+	private function find_master_phone( $id ) {
+		global $wpdb;
+		$phones = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+		$accounts = TableNameResolver::get_table_name( 'whatsapp_accounts' );
+		$tenants = TableNameResolver::get_table_name( 'tenants' );
+		return $wpdb->get_row( $wpdb->prepare(
+			"SELECT p.*, a.waba_id, a.name AS waba_name, a.status AS waba_status, t.name AS tenant_name FROM $phones p LEFT JOIN $accounts a ON a.id = p.whatsapp_account_id LEFT JOIN $tenants t ON t.id = p.tenant_id WHERE p.id = %d LIMIT 1",
+			(int) $id
+		) );
+	}
+
+	private function public_route( $route ) {
+		return [
+			'id'              => (int) $route->id,
+			'name'            => $route->name,
+			'target_url'      => $route->target_url,
+			'is_active'       => (bool) $route->is_active,
+			'status'          => $route->status,
+			'event_filters'   => json_decode( $route->event_filters_json ?: '{}', true ),
+			'timeout_ms'      => (int) $route->timeout_ms,
+			'max_retries'     => (int) $route->max_retries,
+			'priority'        => (int) $route->priority,
+		];
+	}
 
     /**
      * Get list of Onboarding Sessions.
