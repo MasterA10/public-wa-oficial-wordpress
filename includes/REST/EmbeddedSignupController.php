@@ -52,6 +52,12 @@ class EmbeddedSignupController {
 			'permission_callback' => [ Routes::class, 'check_auth' ],
 		] );
 
+		register_rest_route( 'was/v1', '/whatsapp/onboarding/complete', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'complete_embedded_signup' ],
+			'permission_callback' => [ Routes::class, 'check_auth' ],
+		] );
+
 		register_rest_route( 'was/v1', '/onboarding/whatsapp/start', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'start' ],
@@ -85,7 +91,8 @@ class EmbeddedSignupController {
 	}
 
 	public function status( $request ) {
-		$result = ( new OnboardingService() )->get_attempt_status( TenantContext::getTenantId(), $request->get_param( 'attempt_id' ) );
+		$service = new OnboardingService();
+		$result = $request->get_param( 'refresh' ) ? $service->refresh_attempt_status( TenantContext::getTenantId(), $request->get_param( 'attempt_id' ) ) : $service->get_attempt_status( TenantContext::getTenantId(), $request->get_param( 'attempt_id' ) );
 		return is_wp_error( $result )
 			? new WP_REST_Response( [ 'success' => false, 'error' => $result->get_error_code(), 'message' => $result->get_error_message() ], (int) ( $result->get_error_data()['status'] ?? 500 ) )
 			: new WP_REST_Response( $result, 200 );
@@ -122,6 +129,12 @@ class EmbeddedSignupController {
 	 * @return WP_REST_Response
 	 */
 	public function complete( $request ) {
+		$attempt_id = sanitize_text_field( $request->get_param( 'attempt_id' ) );
+		$code = sanitize_text_field( $request->get_param( 'code' ) ?: $request->get_param( 'authorization_code' ) );
+		if ( $attempt_id && $code ) {
+			return $this->complete_embedded_signup( $request );
+		}
+
 		$session_uuid    = sanitize_text_field( $request->get_param( 'session_uuid' ) );
 		$code            = sanitize_text_field( $request->get_param( 'code' ) );
 		$waba_id         = sanitize_text_field( $request->get_param( 'waba_id' ) );
@@ -166,5 +179,21 @@ class EmbeddedSignupController {
 		$this->service->cancel( $session_uuid, $reason );
 
 		return new WP_REST_Response( [ 'success' => true ], 200 );
+	}
+
+	/** Complete the modern tenant-scoped Embedded Signup attempt. */
+	public function complete_embedded_signup( $request ) {
+		$params = $request->get_json_params();
+		if ( ! is_array( $params ) || ! $params ) {
+			$params = $request->get_params();
+		}
+		$params['tenant_id'] = (int) TenantContext::getTenantId();
+		$params['authorization_code'] = sanitize_text_field( $params['authorization_code'] ?? $params['code'] ?? '' );
+		$params['attempt_id'] = sanitize_text_field( $params['attempt_id'] ?? '' );
+
+		$result = ( new OnboardingService() )->complete_embedded_signup_for_attempt( $params['tenant_id'], $params );
+		return is_wp_error( $result )
+			? new WP_REST_Response( [ 'success' => false, 'error' => $result->get_error_code(), 'message' => $result->get_error_message() ], (int) ( $result->get_error_data()['status'] ?? 500 ) )
+			: new WP_REST_Response( $result, 200 );
 	}
 }

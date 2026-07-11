@@ -52,14 +52,42 @@ class MetaCallbackController {
         ]);
         if ( is_wp_error( $result ) ) {
             $status = (int) ( $result->get_error_data()['status'] ?? 400 );
-            return new WP_REST_Response([
-                'success' => false,
-                'error' => $result->get_error_code(),
+            return $this->callback_html_response( 'error', [
+                'error'   => $result->get_error_code(),
                 'message' => $result->get_error_message(),
-            ], $status);
+            ], $status );
         }
 
-        return new WP_REST_Response( array_merge( [ 'success' => true ], is_array( $result ) ? $result : [] ), 200 );
+        $result = array_merge( [ 'success' => true ], is_array( $result ) ? $result : [] );
+        $status = 'completed' === ( $result['status'] ?? '' ) ? 'success' : 'pending';
+        return $this->callback_html_response( $status, $result, 200 );
+    }
+
+    private function callback_html_response( $status, array $result, $http_status ) {
+        $template = WAS_PLUGIN_DIR . 'templates/meta-callback-result.php';
+        $attempt_id = sanitize_text_field( $result['attempt_id'] ?? '' );
+        $message = sanitize_text_field( $result['message'] ?? ( 'success' === $status ? 'Número conectado com sucesso.' : ( 'pending' === $status ? 'Cadastro recebido. A reconciliação ainda está em andamento.' : 'Não foi possível concluir o cadastro.' ) ) );
+        $connection = is_array( $result['connection'] ?? null ) ? $result['connection'] : $result;
+
+        ob_start();
+        include $template;
+        $html = ob_get_clean();
+        $response = new WP_REST_Response( $html, (int) $http_status );
+        if ( method_exists( $response, 'header' ) ) {
+            $response->header( 'Content-Type', 'text/html; charset=utf-8' );
+        }
+        // WordPress normally JSON-encodes REST response data. This callback is
+        // opened by Meta in a browser, so serve the rendered confirmation as
+        // raw HTML while leaving the controller response testable.
+        add_filter( 'rest_pre_serve_request', static function ( $served, $rest_response, $rest_request ) use ( $html ) {
+            if ( ! $rest_request || false === strpos( (string) $rest_request->get_route(), '/meta/oauth/callback' ) || ! ( $rest_response instanceof WP_REST_Response ) ) {
+                return $served;
+            }
+            header( 'Content-Type: text/html; charset=utf-8' );
+            echo $html;
+            return true;
+        }, 10, 3 );
+        return $response;
     }
 
     /**

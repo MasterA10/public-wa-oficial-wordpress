@@ -8,6 +8,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class RouterSettings {
 
+	public static function get_embedded_signup_mode() {
+		$mode = '';
+		if ( defined( 'WAS_META_EMBEDDED_SIGNUP_MODE' ) && WAS_META_EMBEDDED_SIGNUP_MODE ) {
+			$mode = (string) WAS_META_EMBEDDED_SIGNUP_MODE;
+		} elseif ( getenv( 'META_EMBEDDED_SIGNUP_MODE' ) ) {
+			$mode = (string) getenv( 'META_EMBEDDED_SIGNUP_MODE' );
+		} else {
+			$mode = (string) get_option( 'was_meta_embedded_signup_mode', 'direct' );
+		}
+
+		return in_array( strtolower( $mode ), [ 'sdk', 'direct' ], true ) ? strtolower( $mode ) : 'direct';
+	}
+
 	public static function get_meta_oauth_redirect_uri() {
 		if ( defined( 'WAS_META_ONBOARDING_REDIRECT_URI' ) && WAS_META_ONBOARDING_REDIRECT_URI ) {
 			return (string) WAS_META_ONBOARDING_REDIRECT_URI;

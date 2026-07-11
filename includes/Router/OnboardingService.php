@@ -41,8 +41,9 @@ class OnboardingService {
 			return new WP_Error( 'meta_redirect_uri_not_configured', 'Callback OAuth da Meta nao configurado.', [ 'status' => 409 ] );
 		}
 
-		$base_url = RouterSettings::get_meta_embedded_signup_base_url( $app->graph_version ?? null );
-		$config_id = $app->embedded_signup_config_id ?: ( $app->config_id ?? '' );
+		$flow_mode = RouterSettings::get_embedded_signup_mode();
+		$base_url = $this->get_tenant_embedded_signup_url( $tenant_id ) ?: RouterSettings::get_meta_embedded_signup_base_url( $app->graph_version ?? null );
+		$config_id = ! empty( $app->embedded_signup_config_id ) ? $app->embedded_signup_config_id : ( $app->config_id ?? '' );
 		if ( ! $app->app_id || ! $config_id ) {
 			return new WP_Error( 'embedded_signup_not_configured', 'App ID ou config_id do Embedded Signup nao configurado.', [ 'status' => 409 ] );
 		}
@@ -90,7 +91,29 @@ class OnboardingService {
 		$result['authorization_url'] = $authorization_url;
 		$result['redirect_uri'] = $redirect_uri;
 		$result['expires_at'] = gmdate( 'c', time() + RouterSettings::get_onboarding_ttl_seconds() );
+		$result['flow_mode'] = $flow_mode;
+		$result['app_id'] = (string) $app->app_id;
+		$result['config_id'] = (string) $config_id;
+		$result['graph_version'] = (string) ( $app->graph_version ?: WAS_META_GRAPH_DEFAULT_VERSION );
+		$result['state'] = $state;
 		return $result;
+	}
+
+	/** Complete an SDK callback using only the public attempt identifier. */
+	public function complete_embedded_signup_for_attempt( $tenant_id, array $payload ) {
+		$attempt_id = sanitize_text_field( $payload['attempt_id'] ?? '' );
+		$registration = $this->get_registration_for_completion( (int) $tenant_id, 0, $attempt_id, true );
+		if ( ! $registration ) {
+			return new WP_Error( 'onboarding_attempt_not_found', 'Tentativa de onboarding nao encontrada.', [ 'status' => 404 ] );
+		}
+
+		$payload['tenant_id'] = (int) $tenant_id;
+		$payload['meta_app_id'] = (int) $registration->meta_app_id;
+		$payload['attempt_id'] = $attempt_id;
+		if ( empty( $payload['authorization_code'] ) && ! empty( $payload['code'] ) ) {
+			$payload['authorization_code'] = sanitize_text_field( $payload['code'] );
+		}
+		return $this->complete_embedded_signup( $payload );
 	}
 
 	/** Return tenant-scoped status without exposing secrets or OAuth state. */
@@ -114,6 +137,33 @@ class OnboardingService {
 			];
 		}
 		return $data;
+	}
+
+	/**
+	 * Give a polling client one safe opportunity to advance a queued attempt.
+	 * This is intentionally scoped to the current tenant and one attempt.
+	 */
+	public function refresh_attempt_status( $tenant_id, $attempt_id ) {
+		$registration = $this->get_registration_for_completion( (int) $tenant_id, 0, sanitize_text_field( $attempt_id ), true );
+		if ( ! $registration ) {
+			return new WP_Error( 'onboarding_attempt_not_found', 'Tentativa de onboarding nao encontrada.', [ 'status' => 404 ] );
+		}
+
+		if ( ! in_array( (string) $registration->status, [ 'completed', 'expired', 'cancelled' ], true ) ) {
+			global $wpdb;
+			$jobs_table = TableNameResolver::getOnboardingReconciliationJobsTable();
+			$job = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT * FROM $jobs_table WHERE registration_id = %d AND status IN ('pending','failed') ORDER BY id DESC LIMIT 1",
+					(int) $registration->id
+				)
+			);
+			if ( $job ) {
+				$this->process_reconciliation_job( (int) $job->id );
+			}
+		}
+
+		return $this->get_attempt_status( (int) $tenant_id, $attempt_id );
 	}
 
 	/** Consume the OAuth state and finish the callback server-side. */
@@ -334,6 +384,7 @@ class OnboardingService {
 		$wpdb->update( $jobs_table, $job_update, [ 'id' => $job_id ] );
 
 		$result['job_id'] = $job_id;
+		$result['attempt_id'] = $attempt_id;
 		unset( $result['job_status'], $result['job_error'] );
 		return $result;
 	}
@@ -599,6 +650,12 @@ class OnboardingService {
 		$access_token = $access_token_result['access_token'];
 		$meta_waba_id = sanitize_text_field( $payload['waba_id'] ?? $this->object_value( $registration, 'meta_waba_id' ) );
 		if ( ! $meta_waba_id ) {
+			$meta_waba_id = $this->discover_waba_from_token( $registration, $access_token );
+			if ( $meta_waba_id ) {
+				$payload['waba_id'] = $meta_waba_id;
+			}
+		}
+		if ( ! $meta_waba_id ) {
 			return $this->queued_for_retry_result( $registration, 'waiting_meta_waba_id', 'Meta WABA ID ausente.' );
 		}
 		$ownership_error = $this->validate_meta_resource_ownership( $registration, $meta_waba_id, $payload['phone_number_id'] ?? $this->object_value( $registration, 'phone_number_id' ) );
@@ -611,6 +668,10 @@ class OnboardingService {
 		$meta_phone = $this->select_meta_phone_number( $registration, $payload, $access_token, $account );
 		if ( ! $meta_phone ) {
 			return $this->queued_for_retry_result( $registration, 'waiting_phone_number', 'Nao foi possivel identificar o numero conectado.' );
+		}
+		$ownership_error = $this->validate_meta_resource_ownership( $registration, $meta_waba_id, $meta_phone['id'] ?? $meta_phone['phone_number_id'] ?? '' );
+		if ( is_wp_error( $ownership_error ) ) {
+			return $ownership_error;
 		}
 
 		$phone_id = $this->upsert_phone( $registration, $account, $meta_phone );
@@ -1085,6 +1146,78 @@ class OnboardingService {
 		return $registration;
 	}
 
+	private function get_tenant_embedded_signup_url( $tenant_id ) {
+		global $wpdb;
+		$table = TableNameResolver::get_table_name( 'settings' );
+		return (string) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT setting_value FROM $table WHERE tenant_id = %d AND setting_key = 'embedded_signup_url' LIMIT 1",
+				(int) $tenant_id
+			)
+		);
+	}
+
+	/**
+	 * Embedded Signup returns a code and often only sends the WABA ID through
+	 * the browser SDK event. Direct OAuth callbacks do not have that event, so
+	 * discover the WABA from Meta's granular scopes before reconciling it.
+	 */
+	private function discover_waba_from_token( $registration, $access_token ) {
+		$app = $this->get_meta_app( (int) $registration->meta_app_id, true );
+		if ( ! $app || empty( $app->app_id ) || empty( $app->app_secret ) || ! $access_token ) {
+			return null;
+		}
+
+		$version = $app->graph_version ?: WAS_META_GRAPH_DEFAULT_VERSION;
+		$debug_response = wp_remote_get(
+			add_query_arg(
+				[
+					'input_token'  => $access_token,
+					'access_token' => $app->app_id . '|' . $app->app_secret,
+				],
+				WAS_META_GRAPH_BASE_URL . '/' . $version . '/debug_token'
+			),
+			[ 'timeout' => 20 ]
+		);
+		if ( is_wp_error( $debug_response ) ) {
+			return null;
+		}
+
+		$debug_body = json_decode( wp_remote_retrieve_body( $debug_response ), true );
+		$debug_data = is_array( $debug_body['data'] ?? null ) ? $debug_body['data'] : [];
+		$scopes = is_array( $debug_data['granular_scopes'] ?? null ) ? $debug_data['granular_scopes'] : [];
+		foreach ( $scopes as $scope ) {
+			$scope_name = (string) ( $scope['scope'] ?? $scope['name'] ?? '' );
+			if ( 'whatsapp_business_management' !== $scope_name ) {
+				continue;
+			}
+			$target_ids = is_array( $scope['target_ids'] ?? null ) ? $scope['target_ids'] : [];
+			if ( ! empty( $target_ids[0] ) ) {
+				return sanitize_text_field( $target_ids[0] );
+			}
+		}
+
+		$scopes = is_array( $debug_data['scopes'] ?? null ) ? $debug_data['scopes'] : [];
+		if ( in_array( 'whatsapp_business_management', $scopes, true ) && ! empty( $debug_data['granular_scopes'][0]['target_ids'][0] ) ) {
+			return sanitize_text_field( $debug_data['granular_scopes'][0]['target_ids'][0] );
+		}
+
+		$accounts_response = wp_remote_get(
+			WAS_META_GRAPH_BASE_URL . '/' . $version . '/me/whatsapp_business_accounts?fields=id,name,business_id&access_token=' . rawurlencode( $access_token ),
+			[ 'timeout' => 20 ]
+		);
+		if ( is_wp_error( $accounts_response ) ) {
+			return null;
+		}
+
+		$accounts_body = json_decode( wp_remote_retrieve_body( $accounts_response ), true );
+		if ( ! empty( $accounts_body['data'][0]['id'] ) ) {
+			return sanitize_text_field( $accounts_body['data'][0]['id'] );
+		}
+
+		return null;
+	}
+
 	private function get_registration( $id ) {
 		global $wpdb;
 		$table = TableNameResolver::getOnboardingRegistrationsTable();
@@ -1264,6 +1397,7 @@ class OnboardingService {
 		return [
 			'success' => true,
 			'status' => 'completed',
+			'attempt_id' => $registration->attempt_id,
 			'waba_id' => (int) ( $registration->router_waba_id ?? 0 ),
 			'phone_number_id' => (int) ( $registration->router_phone_number_id ?? 0 ),
 			'route_id' => $registration->route_id ? (int) $registration->route_id : null,

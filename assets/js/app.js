@@ -2142,98 +2142,179 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsBox = document.getElementById('was-verify-results');
         const list = document.getElementById('was-verify-list');
         const btnLaunch = document.getElementById('was-launch-signup');
+        const phoneInput = document.getElementById('was-signup-phone');
+        const onboardingResult = document.getElementById('was-onboarding-result');
+        let onboardingPollTimer = null;
+
+        const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[char]));
+
+        const showOnboardingResult = (status, data = {}) => {
+            if (!onboardingResult) return;
+            const connection = data.connection || data;
+            const completed = status === 'completed';
+            const pending = status === 'pending' || status === 'queued_for_retry';
+            const color = completed ? '#166534' : (pending ? '#854d0e' : '#991b1b');
+            const title = completed ? 'Número cadastrado com sucesso' : (pending ? 'Cadastro em processamento' : 'Cadastro não concluído');
+            const details = completed ? `
+                <div style="margin-top:10px; color:#334155;">
+                    ${connection.display_phone_number ? `<div><strong>Número:</strong> ${escapeHtml(connection.display_phone_number)}</div>` : ''}
+                    ${connection.waba_id || connection.meta_waba_id ? `<div><strong>WABA:</strong> ${escapeHtml(connection.waba_id || connection.meta_waba_id)}</div>` : ''}
+                    ${connection.phone_number_id || connection.meta_phone_number_id ? `<div><strong>Phone ID:</strong> ${escapeHtml(connection.phone_number_id || connection.meta_phone_number_id)}</div>` : ''}
+                </div>` : '';
+            onboardingResult.style.display = 'block';
+            onboardingResult.style.padding = '14px 16px';
+            onboardingResult.style.borderLeft = `4px solid ${color}`;
+            onboardingResult.style.background = '#f8fafc';
+            onboardingResult.innerHTML = `<strong style="color:${color}">${title}</strong><div>${escapeHtml(data.message || (pending ? 'Aguarde enquanto confirmamos os dados na Meta.' : 'Verifique a configuração da Meta e tente novamente.'))}</div>${details}`;
+        };
+
+        const stopPolling = () => {
+            if (onboardingPollTimer) {
+                clearTimeout(onboardingPollTimer);
+                onboardingPollTimer = null;
+            }
+        };
+
+        const pollAttempt = async (attemptId, tries = 0) => {
+            if (!attemptId || tries > 45) {
+                showOnboardingResult('pending', { message: 'O cadastro foi recebido, mas ainda está sendo processado. Atualize esta tela em alguns instantes.' });
+                return;
+            }
+            try {
+                const status = await wasApiFetch(`/whatsapp/onboarding/attempts/${encodeURIComponent(attemptId)}?refresh=1`);
+                if (status.status === 'completed') {
+                    stopPolling();
+                    showOnboardingResult('completed', status.connection || status);
+                    btnLaunch.textContent = 'Número cadastrado';
+                    btnLaunch.disabled = true;
+                    return;
+                }
+                if (['failed', 'expired', 'cancelled'].includes(status.status)) {
+                    stopPolling();
+                    showOnboardingResult('error', { message: status.last_error || 'A Meta não concluiu o cadastro.' });
+                    return;
+                }
+                onboardingPollTimer = setTimeout(() => pollAttempt(attemptId, tries + 1), 2000);
+            } catch (error) {
+                onboardingPollTimer = setTimeout(() => pollAttempt(attemptId, tries + 1), 2500);
+            }
+        };
+
+        const loadFacebookSdk = (appId, version) => new Promise((resolve, reject) => {
+            const init = () => {
+                if (!window.FB) return reject(new Error('SDK da Meta não foi carregado.'));
+                window.FB.init({ appId, cookie: true, xfbml: true, version: version || 'v25.0' });
+                resolve();
+            };
+            if (window.FB) return init();
+            const existing = document.getElementById('facebook-jssdk');
+            if (existing) {
+                existing.addEventListener('load', init, { once: true });
+                setTimeout(() => window.FB ? init() : reject(new Error('Tempo excedido ao carregar o SDK da Meta.')), 10000);
+                return;
+            }
+            const script = document.createElement('script');
+            script.id = 'facebook-jssdk';
+            script.src = 'https://connect.facebook.net/en_US/sdk.js';
+            script.async = true;
+            script.onload = init;
+            script.onerror = () => reject(new Error('Não foi possível carregar o SDK da Meta.'));
+            document.head.appendChild(script);
+        });
+
+        const runSdkSignup = async (startData, attemptId) => {
+            await loadFacebookSdk(startData.app_id, startData.graph_version);
+            return new Promise((resolve, reject) => {
+                let finishData = {};
+                const listener = (event) => {
+                    const trustedOrigin = ['https://www.facebook.com', 'https://web.facebook.com', 'https://business.facebook.com'].includes(event.origin);
+                    if (!trustedOrigin) return;
+                    try {
+                        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                        if (!data || data.type !== 'WA_EMBEDDED_SIGNUP') return;
+                        if (['FINISH', 'FINISHED', 'SUCCESS'].includes(String(data.event || '').toUpperCase())) {
+                            finishData = data.data || {};
+                        }
+                    } catch (error) {
+                        // Meta can send non-JSON postMessage events; ignore those.
+                    }
+                };
+                window.addEventListener('message', listener);
+                window.FB.login((response) => {
+                    const authResponse = response && response.authResponse ? response.authResponse : response;
+                    const code = authResponse && authResponse.code ? authResponse.code : '';
+                    window.removeEventListener('message', listener);
+                    if (!code) {
+                        reject(new Error('O cadastro incorporado foi cancelado ou não retornou um authorization code.'));
+                        return;
+                    }
+                    resolve({
+                        attempt_id: attemptId,
+                        code,
+                        waba_id: finishData.waba_id || finishData.wabaId || '',
+                        phone_number_id: finishData.phone_number_id || finishData.phoneNumberId || '',
+                        business_id: finishData.business_id || finishData.businessId || ''
+                    });
+                }, {
+                    config_id: startData.config_id,
+                    response_type: 'code',
+                    override_default_response_type: true,
+                    extras: {
+                        version: 'v4',
+                        featureType: 'whatsapp_business_app_onboarding',
+                        sessionInfoVersion: '3',
+                        features: [{ name: 'app_only_install' }]
+                    }
+                });
+            });
+        };
 
         if (btnLaunch) {
             btnLaunch.addEventListener('click', async () => {
                 const originalText = btnLaunch.textContent;
                 btnLaunch.textContent = 'Iniciando...';
                 btnLaunch.disabled = true;
+                stopPolling();
 
                 try {
-                    // 1. Iniciar sessão no backend
-                    const sessionData = await wasApiFetch('/onboarding/whatsapp/start', 'POST');
-                    if (!sessionData.success || !sessionData.session_uuid) {
-                        throw new Error(sessionData.error || 'Falha ao iniciar sessão de onboarding.');
+                    const phone = phoneInput ? phoneInput.value.trim() : '';
+                    if (!phone) throw new Error('Informe o número WhatsApp da empresa antes de iniciar.');
+
+                    const directPopup = window.open('about:blank', 'fb_signup', 'width=600,height=700');
+                    const startData = await wasApiFetch('/whatsapp/onboarding/start', 'POST', {
+                        phone_number: phone,
+                        return_url: window.location.href
+                    });
+                    if (!startData.attempt_id) {
+                        throw new Error(startData.message || 'Falha ao iniciar o cadastro incorporado.');
                     }
 
-                    const sessionUuid = sessionData.session_uuid;
-
-                    // 2. Configurar listener para mensagens do popup (WABA ID e Phone ID)
-                    let signupData = {
-                        waba_id: null,
-                        phone_number_id: null,
-                        business_id: null
-                    };
-
-                    const messageListener = (event) => {
-                        if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return;
-                        
-                        try {
-                            const data = JSON.parse(event.data);
-                            if (data.type !== 'WA_EMBEDDED_SIGNUP') return;
-
-                            if (data.event === 'FINISH') {
-                                signupData.waba_id = data.data.waba_id || null;
-                                signupData.phone_number_id = data.data.phone_number_id || null;
-                                signupData.business_id = data.data.business_id || null;
-                                console.log('Embedded Signup Data Captured:', signupData);
-                                
-                                // Mostrar a tela de sucesso no Dashboard
-                                if (typeof wasShowOnboardingSuccess === 'function') {
-                                    wasShowOnboardingSuccess(signupData);
-                                }
-                            }
-
-                        } catch (e) {
-                            console.error('Error parsing Meta message:', e);
+                    showOnboardingResult('pending', { message: 'Aguardando a conclusão do cadastro na Meta.' });
+                    if (startData.flow_mode === 'sdk') {
+                        if (directPopup) directPopup.close();
+                        const completeData = await runSdkSignup(startData, startData.attempt_id);
+                        const result = await wasApiFetch('/whatsapp/onboarding/complete', 'POST', completeData);
+                        if (result.status === 'completed') {
+                            showOnboardingResult('completed', result);
+                            btnLaunch.textContent = 'Número cadastrado';
+                            btnLaunch.disabled = true;
+                        } else {
+                            pollAttempt(startData.attempt_id);
                         }
-
-                    };
-
-                    window.addEventListener('message', messageListener);
-
-                    const config = await wasApiFetch('/meta/config');
-                    const signupUrl = config && config.embedded_signup_url;
-                    if (!signupUrl) {
-                        throw new Error('Embedded signup URL is not configured.');
+                    } else {
+                        if (!startData.authorization_url) throw new Error('URL do cadastro incorporado não configurada.');
+                        if (!directPopup) throw new Error('O navegador bloqueou a janela do cadastro. Permita pop-ups e tente novamente.');
+                        directPopup.location = startData.authorization_url;
+                        pollAttempt(startData.attempt_id);
                     }
-                    const popup = window.open(signupUrl, 'fb_signup', 'width=600,height=700');
-
-                    const checkPopup = setInterval(() => {
-                        if (!popup || popup.closed) {
-                            clearInterval(checkPopup);
-                            btnLaunch.textContent = originalText;
-                            btnLaunch.disabled = false;
-                            
-                            // Se capturamos os IDs, tentamos finalizar no backend
-                            if (signupData.waba_id) {
-                                (async () => {
-                                    try {
-                                        const result = await wasApiFetch('/onboarding/whatsapp/complete', 'POST', {
-                                            session_uuid: sessionUuid,
-                                            waba_id: signupData.waba_id,
-                                            phone_number_id: signupData.phone_number_id,
-                                            business_id: signupData.business_id
-                                        });
-
-                                        if (result.success) {
-                                            alert('WhatsApp conectado com sucesso!');
-                                            location.reload();
-                                        }
-                                    } catch (err) {
-                                        console.error('Erro ao completar conexão:', err);
-                                    } finally {
-                                        window.removeEventListener('message', messageListener);
-                                    }
-                                })();
-                            } else {
-                                window.removeEventListener('message', messageListener);
-                            }
-                        }
-                    }, 1000);
 
                 } catch (err) {
-                    alert('Erro: ' + err.message);
+                    stopPolling();
+                    showOnboardingResult('error', { message: err.message });
+                }
+                if (!onboardingPollTimer) {
                     btnLaunch.textContent = originalText;
                     btnLaunch.disabled = false;
                 }
