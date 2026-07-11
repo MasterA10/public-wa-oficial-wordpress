@@ -8,6 +8,17 @@ if (!defined('ABSPATH')) exit;
     <h1>Números WhatsApp</h1>
     <p class="description">Cada número já aparece junto da WABA. Clique em um número para consultar templates e configurar o encaminhamento dos webhooks para uma URL externa.</p>
 
+    <div class="card" style="margin-top:20px; padding:18px; max-width:1100px;">
+        <h2 style="margin-top:0;">Cadastrar novo número</h2>
+        <p class="description">Use o Cadastro Incorporado oficial da Meta para adicionar um número a um tenant.</p>
+        <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+            <label>Tenant<br><select id="master-onboarding-tenant" required><option value="">Carregando tenants...</option></select></label>
+            <label>Número WhatsApp<br><input id="master-onboarding-phone" type="tel" inputmode="tel" placeholder="+55 (11) 99999-9999" required></label>
+            <button type="button" id="master-start-onboarding" class="button button-primary">Cadastro incorporado</button>
+        </div>
+        <div id="master-onboarding-status" role="status" aria-live="polite" style="display:none; margin-top:14px;"></div>
+    </div>
+
     <table class="wp-list-table widefat fixed striped" style="margin-top: 20px;">
         <thead>
             <tr>

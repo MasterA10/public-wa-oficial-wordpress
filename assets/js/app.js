@@ -255,6 +255,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initMasterWebhooks() {
         const tb = document.getElementById('master-webhooks-list');
         if (!tb) return;
+        const modal = document.getElementById('was-master-webhook-payload-modal');
+        const payloadPre = document.getElementById('was-master-webhook-payload-json');
+        const closeBtn = document.getElementById('was-master-webhook-payload-close');
+        const formatPayload = (payload) => {
+            if (payload && typeof payload === 'object') return JSON.stringify(payload, null, 2);
+            const text = String(payload || '').trim();
+            if (!text) return 'Payload não disponível para este evento.';
+            try { return JSON.stringify(JSON.parse(text), null, 2); } catch (error) { return text; }
+        };
+        if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
         try {
             const data = await wasApiFetch('/admin/webhooks');
             tb.innerHTML = (data || []).map(w => `
@@ -267,10 +277,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${w.processing_status.toUpperCase()}
                     </span></td>
                     <td>
-                        <button class="button" onclick="alert('Ver payload bruto: ${btoa(w.payload || '')}')">Payload</button>
+                        <button class="button view-webhook-payload" data-webhook-id="${w.id}">Payload</button>
                     </td>
                 </tr>
             `).join('') || '<tr><td colspan="6">Nenhum evento recebido.</td></tr>';
+
+            const payloads = new Map((data || []).map(webhook => [String(webhook.id), webhook.payload || webhook.normalized_payload]));
+            tb.querySelectorAll('.view-webhook-payload').forEach(button => button.addEventListener('click', () => {
+                if (!modal || !payloadPre) return;
+                payloadPre.textContent = formatPayload(payloads.get(String(button.dataset.webhookId)));
+                modal.style.display = 'block';
+            }));
         } catch (err) { tb.innerHTML = '<tr><td colspan="6">Erro ao carregar webhooks.</td></tr>'; }
     }
 
@@ -356,11 +373,56 @@ document.addEventListener('DOMContentLoaded', () => {
         const templatesList = document.getElementById('was-master-phone-templates-list');
         const routeForm = document.getElementById('was-master-route-form');
         const syncTemplatesBtn = document.getElementById('was-master-sync-phone-templates');
+        const onboardingTenant = document.getElementById('master-onboarding-tenant');
+        const onboardingPhone = document.getElementById('master-onboarding-phone');
+        const onboardingButton = document.getElementById('master-start-onboarding');
+        const onboardingStatus = document.getElementById('master-onboarding-status');
         let selectedPhoneId = null;
+        let onboardingTimer = null;
 
         const escape = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
         }[char]));
+
+        const showOnboardingStatus = (message, color = '#475569') => {
+            if (!onboardingStatus) return;
+            onboardingStatus.style.display = 'block';
+            onboardingStatus.style.padding = '12px 14px';
+            onboardingStatus.style.borderLeft = `4px solid ${color}`;
+            onboardingStatus.style.background = '#f8fafc';
+            onboardingStatus.textContent = message;
+        };
+
+        const stopOnboardingPolling = () => {
+            if (onboardingTimer) {
+                clearTimeout(onboardingTimer);
+                onboardingTimer = null;
+            }
+        };
+
+        const pollOnboarding = async (tenantId, attemptId, tries = 0) => {
+            if (tries > 45) {
+                showOnboardingStatus('Cadastro recebido. A reconciliação ainda está em andamento; atualize a lista em alguns instantes.', '#a16207');
+                return;
+            }
+            try {
+                const status = await wasApiFetch(`/admin/phone-numbers/onboarding/attempts/${encodeURIComponent(attemptId)}?tenant_id=${encodeURIComponent(tenantId)}&refresh=1`);
+                if (status.status === 'completed') {
+                    stopOnboardingPolling();
+                    showOnboardingStatus('Número cadastrado com sucesso. Atualizando a lista de números...', '#15803d');
+                    await loadPhones();
+                    return;
+                }
+                if (['failed', 'expired', 'cancelled'].includes(status.status)) {
+                    stopOnboardingPolling();
+                    showOnboardingStatus(status.last_error || 'A Meta não concluiu o cadastro.', '#b91c1c');
+                    return;
+                }
+                onboardingTimer = setTimeout(() => pollOnboarding(tenantId, attemptId, tries + 1), 2000);
+            } catch (error) {
+                onboardingTimer = setTimeout(() => pollOnboarding(tenantId, attemptId, tries + 1), 2500);
+            }
+        };
 
         const renderRoutes = (routes = []) => {
             if (!routesList) return;
@@ -436,6 +498,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) { tb.innerHTML = '<tr><td colspan="8">Erro ao carregar números.</td></tr>'; }
         };
 
+        const loadOnboardingTenants = async () => {
+            if (!onboardingTenant) return;
+            try {
+                const tenants = await wasApiFetch('/admin/tenants');
+                onboardingTenant.innerHTML = '<option value="">Selecione o tenant</option>' + (tenants || []).filter(tenant => tenant.status === 'active').map(tenant => `<option value="${tenant.id}">${escape(tenant.name)} (#${tenant.id})</option>`).join('');
+            } catch (error) {
+                onboardingTenant.innerHTML = '<option value="">Erro ao carregar tenants</option>';
+            }
+        };
+
         if (cancelBtn) cancelBtn.addEventListener('click', () => modal.style.display = 'none');
 
         form.addEventListener('submit', async (e) => {
@@ -487,6 +559,38 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) { alert(error.message); } finally { syncTemplatesBtn.disabled = false; }
         });
 
+        onboardingButton?.addEventListener('click', async () => {
+            const tenantId = onboardingTenant?.value;
+            const phone = onboardingPhone?.value.trim();
+            if (!tenantId || !phone) {
+                showOnboardingStatus('Selecione um tenant e informe o número WhatsApp.', '#b91c1c');
+                return;
+            }
+
+            stopOnboardingPolling();
+            onboardingButton.disabled = true;
+            onboardingButton.textContent = 'Iniciando...';
+            const popup = window.open('about:blank', 'was_meta_signup', 'width=600,height=700');
+            try {
+                const start = await wasApiFetch('/admin/phone-numbers/onboarding/start', 'POST', {
+                    tenant_id: tenantId,
+                    phone_number: phone
+                });
+                if (!start.attempt_id || !start.authorization_url) throw new Error(start.message || 'Cadastro incorporado não configurado.');
+                if (!popup) throw new Error('O navegador bloqueou a janela. Permita pop-ups e tente novamente.');
+                popup.location = start.authorization_url;
+                showOnboardingStatus('Aguardando a conclusão do Cadastro Incorporado da Meta...', '#a16207');
+                pollOnboarding(tenantId, start.attempt_id);
+            } catch (error) {
+                if (popup) popup.close();
+                showOnboardingStatus(error.message, '#b91c1c');
+            } finally {
+                onboardingButton.disabled = false;
+                onboardingButton.textContent = 'Cadastro incorporado';
+            }
+        });
+
+        loadOnboardingTenants();
         loadPhones();
     }
 

@@ -67,6 +67,18 @@ class AdminMasterApiController {
 			'permission_callback' => [ $this, 'permissions_check' ],
 		] );
 
+		register_rest_route( 'was/v1', '/admin/phone-numbers/onboarding/start', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'start_phone_onboarding' ],
+			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
+		register_rest_route( 'was/v1', '/admin/phone-numbers/onboarding/attempts/(?P<attempt_id>[A-Za-z0-9-]+)', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'phone_onboarding_status' ],
+			'permission_callback' => [ $this, 'permissions_check' ],
+		] );
+
 		register_rest_route( 'was/v1', '/admin/phone-numbers/(?P<id>\d+)/test-message', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'test_phone_message' ],
@@ -275,6 +287,29 @@ class AdminMasterApiController {
         " );
 
 		return new WP_REST_Response( $phones, 200 );
+	}
+
+	public function start_phone_onboarding( $request ) {
+		$params = $request->get_json_params();
+		$params = is_array( $params ) ? $params : [];
+		$params['tenant_id'] = (int) ( $params['tenant_id'] ?? 0 );
+
+		$result = ( new \WAS\Router\OnboardingService() )->start_embedded_signup( $params );
+		return is_wp_error( $result ) ? $result : new WP_REST_Response( $result, 200 );
+	}
+
+	public function phone_onboarding_status( $request ) {
+		$tenant_id = (int) $request->get_param( 'tenant_id' );
+		$attempt_id = $request->get_param( 'attempt_id' );
+		if ( ! $tenant_id ) {
+			return new \WP_Error( 'tenant_required', 'Tenant obrigatorio.', [ 'status' => 400 ] );
+		}
+
+		$service = new \WAS\Router\OnboardingService();
+		$result = $request->get_param( 'refresh' )
+			? $service->refresh_attempt_status( $tenant_id, $attempt_id )
+			: $service->get_attempt_status( $tenant_id, $attempt_id );
+		return is_wp_error( $result ) ? $result : new WP_REST_Response( $result, 200 );
 	}
 
 	public function get_phone_details( $request ) {
