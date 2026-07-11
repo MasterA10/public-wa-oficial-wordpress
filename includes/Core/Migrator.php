@@ -23,6 +23,7 @@ class Migrator {
 		self::migrate_contacts_table();
 		self::migrate_conversations_table();
 		self::migrate_router_columns();
+		self::migrate_onboarding_security_columns();
 	}
 
 	/**
@@ -144,6 +145,19 @@ class Migrator {
 				'last_status_check_at'           => 'datetime DEFAULT NULL',
 				'last_status_error'              => 'text DEFAULT NULL',
 				'approved_notified_at'           => 'datetime DEFAULT NULL',
+			]
+		);
+	}
+
+	/** Add one-time OAuth state and lifecycle fields to existing installations. */
+	private static function migrate_onboarding_security_columns() {
+		self::add_missing_columns(
+			TableNameResolver::getOnboardingRegistrationsTable(),
+			[
+				'state_hash'           => 'varchar(128) DEFAULT NULL',
+				'expires_at'           => 'datetime DEFAULT NULL',
+				'callback_received_at' => 'datetime DEFAULT NULL',
+				'completed_at'         => 'datetime DEFAULT NULL',
 			]
 		);
 	}

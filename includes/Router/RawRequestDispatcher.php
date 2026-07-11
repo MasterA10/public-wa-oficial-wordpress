@@ -79,6 +79,15 @@ class RawRequestDispatcher {
 			return $controller->create_onboarding_registration( $request );
 		}
 
+		if ( 'v1/onboarding/meta/start' === $path && 'POST' === $method ) {
+			return $controller->start_onboarding( $request );
+		}
+
+		if ( preg_match( '#^v1/onboarding/meta/attempts/([A-Za-z0-9-]+)$#', $path, $matches ) && 'GET' === $method ) {
+			$request->set_param( 'attempt_id', $matches[1] );
+			return $controller->onboarding_status( $request );
+		}
+
 		if ( 'v1/onboarding/meta/embedded-signup' === $path && 'POST' === $method ) {
 			return $controller->complete_embedded_signup( $request );
 		}
@@ -89,6 +98,11 @@ class RawRequestDispatcher {
 
 		if ( 'v1/whatsapp/send' === $path && 'POST' === $method ) {
 			return $controller->send_message( $request );
+		}
+
+		if ( preg_match( '#^v1/whatsapp/connections/(\d+)/messages$#', $path, $matches ) && 'POST' === $method ) {
+			$request->set_param( 'connection_id', (int) $matches[1] );
+			return $controller->send_connection_message( $request );
 		}
 
 		if ( preg_match( '#^v1/whatsapp/phone-numbers/(\d+)/status$#', $path, $matches ) && 'GET' === $method ) {

@@ -36,6 +36,12 @@ class WhatsAppApiController {
             'callback'            => [ $this, 'get_accounts' ],
             'permission_callback' => [ $this, 'permissions_check' ],
         ] );
+
+        register_rest_route( 'was/v1', '/whatsapp/connections/(?P<connection_id>\d+)/messages', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'send_connection_message' ],
+            'permission_callback' => [ $this, 'permissions_check' ],
+        ] );
     }
 
     /**
@@ -77,6 +83,28 @@ class WhatsAppApiController {
     public function get_phone_numbers(WP_REST_Request $request) {
         // Implementar se necessário separadamente
         return new WP_REST_Response([], 200);
+    }
+
+    public function send_connection_message( WP_REST_Request $request ) {
+        global $wpdb;
+        $tenant_id = (int) \WAS\Auth\TenantContext::getTenantId();
+        $connection_id = (int) $request->get_param( 'connection_id' );
+        $table = \WAS\Core\TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+        $phone = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM $table WHERE id = %d AND tenant_id = %d AND status = 'active' LIMIT 1", $connection_id, $tenant_id ) );
+        if ( ! $phone ) {
+            return new \WP_Error( 'connection_not_found', 'Conexao WhatsApp nao encontrada para este tenant.', [ 'status' => 404 ] );
+        }
+
+        $params = $request->get_json_params();
+        if ( ! is_array( $params ) || ! $params ) {
+            $params = $request->get_params();
+        }
+        $params['phone_number_id'] = $connection_id;
+        $result = ( new \WAS\Router\WhatsAppService() )->send_message( $params, (object) [ 'type' => 'wordpress_user', 'user_id' => get_current_user_id() ] );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+        return new WP_REST_Response( $result, ( ! empty( $result['success'] ) ? 200 : 502 ) );
     }
 
     /**

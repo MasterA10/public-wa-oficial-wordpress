@@ -36,13 +36,13 @@ class TokenVault {
             return null;
         }
 
-        // Se a chave não estiver definida, retorna o valor "puro" (fallback para modo dev/sem criptografia configurada)
+        // Tokens nunca podem ser usados ou devolvidos em claro.
         if (!defined('WAS_ENCRYPTION_KEY')) {
-            \WAS\Core\SystemLogger::logError("WAS_ENCRYPTION_KEY not defined. Returning raw token.", [
+            \WAS\Core\SystemLogger::logError("WAS_ENCRYPTION_KEY not defined. Token access blocked.", [
                 'tenant_id' => $tenant_id,
                 'context'   => 'TokenVault::get_valid_token'
             ]);
-            return $encrypted;
+            return null;
         }
 
         try {
@@ -52,7 +52,7 @@ class TokenVault {
                 'context'   => 'TokenVault::get_valid_token',
                 'tenant_id' => $tenant_id,
             ]);
-            return $encrypted; // Fallback
+            return null;
         }
     }
 

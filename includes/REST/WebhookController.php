@@ -26,11 +26,11 @@ class WebhookController {
         $challenge = $request->get_param('hub_challenge') ?: ($_GET['hub_challenge'] ?? $_GET['hub.challenge'] ?? '');
 
         $repository = new MetaAppRepository();
-        $app = $repository->get_active_app();
+        $app = $repository->get_active_app_for_verify_token( $token );
 
         if ($mode === 'subscribe' && !empty($token)) {
             // Comparação segura de token
-            if ($app && hash_equals($app->verify_token, (string)$token)) {
+            if ($app) {
                 \WAS\WhatsApp\WebhookLogger::log_verification($_GET, 200, (string)$challenge);
                 // IMPORTANTE: Deve retornar APENAS o challenge como texto puro
                 status_header(200);
@@ -61,14 +61,7 @@ class WebhookController {
             $signature = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
         }
 
-        $payload = json_decode($raw_body, true);
-        if (empty($payload)) {
-            \WAS\WhatsApp\WebhookLogger::log_event($raw_body, $headers, 400, 'Invalid payload');
-            \WAS\Compliance\AuditLogger::log('webhook_payload_error', 'webhook', 0, ['reason' => 'Empty or malformed JSON']);
-            return new WP_REST_Response(['message' => 'Invalid payload'], 400);
-        }
-
-        $app = (new \WAS\Router\MetaAppResolver())->resolve_for_webhook_payload($payload, true);
+		$app = (new \WAS\Router\MetaAppResolver())->resolve_for_webhook_raw_body($raw_body, true);
 
         if (!$app) {
             \WAS\WhatsApp\WebhookLogger::log_event([], $headers, 500, 'App not configured');
@@ -76,11 +69,18 @@ class WebhookController {
         }
 
         // 1. Validar assinatura (Segurança)
-        if (!\WAS\WhatsApp\WebhookSignatureValidator::is_valid($raw_body, $signature, $app->app_secret)) {
+		if (!\WAS\WhatsApp\WebhookSignatureValidator::is_valid($raw_body, $signature, $app->app_secret)) {
             \WAS\WhatsApp\WebhookLogger::log_event($raw_body, $headers, 403, 'Invalid signature');
             \WAS\Compliance\AuditLogger::log('webhook_auth_error', 'webhook', 0, ['reason' => 'Invalid signature']);
-            return new WP_REST_Response(['message' => 'Invalid signature'], 403);
-        }
+			return new WP_REST_Response(['message' => 'Invalid signature'], 403);
+		}
+
+		$payload = json_decode($raw_body, true);
+		if (empty($payload)) {
+			\WAS\WhatsApp\WebhookLogger::log_event($raw_body, $headers, 400, 'Invalid payload');
+			\WAS\Compliance\AuditLogger::log('webhook_payload_error', 'webhook', 0, ['reason' => 'Empty or malformed JSON']);
+			return new WP_REST_Response(['message' => 'Invalid payload'], 400);
+		}
 
         // 2. Processar evento como Router oficial: normaliza, persiste, aplica rotas e entrega via outbox.
         (new \WAS\Router\WebhookRouterService())->process_meta_payload($payload, $raw_body, true);

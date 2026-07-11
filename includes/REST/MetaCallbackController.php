@@ -6,6 +6,7 @@ use WP_REST_Response;
 use WAS\Meta\OAuthLogRepository;
 use WAS\Meta\DeauthorizeLogRepository;
 use WAS\Compliance\DataDeletionRepository;
+use WAS\Router\OnboardingService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -28,29 +29,37 @@ class MetaCallbackController {
         $errorDescription = isset($params['error_description']) ? sanitize_text_field($params['error_description']) : null;
 
         OAuthLogRepository::insert([
-            'state' => $state,
-            'code_preview' => $code ? substr($code, 0, 12) . '...' : null,
+            'state' => $state ? hash('sha256', $state) : null,
+            'code_preview' => $code ? 'received' : null,
             'error_code' => $error,
             'error_message' => $errorDescription,
-            'raw_payload' => wp_json_encode($params),
+            // Nunca persistir code/state em claro nem devolver o payload OAuth.
+            'raw_payload' => wp_json_encode([
+                'has_code' => (bool) $code,
+                'has_state' => (bool) $state,
+                'error' => $error,
+            ]),
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
             'created_at' => current_time('mysql'),
         ]);
 
-        if ($error) {
+        $result = ( new OnboardingService() )->handle_oauth_callback([
+            'code' => $code,
+            'state' => $state,
+            'error' => $error,
+            'error_description' => $errorDescription,
+        ]);
+        if ( is_wp_error( $result ) ) {
+            $status = (int) ( $result->get_error_data()['status'] ?? 400 );
             return new WP_REST_Response([
                 'success' => false,
-                'error' => $error,
-                'message' => $errorDescription ?: 'Erro no fluxo OAuth.',
-            ], 400);
+                'error' => $result->get_error_code(),
+                'message' => $result->get_error_message(),
+            ], $status);
         }
 
-        return new WP_REST_Response([
-            'success' => true,
-            'service' => 'Meta OAuth Callback',
-            'message' => $code ? 'Code recebido.' : 'Callback ativo.',
-        ], 200);
+        return new WP_REST_Response( array_merge( [ 'success' => true ], is_array( $result ) ? $result : [] ), 200 );
     }
 
     /**

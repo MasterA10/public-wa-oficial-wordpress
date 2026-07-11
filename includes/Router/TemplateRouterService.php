@@ -14,9 +14,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TemplateRouterService {
 
 	public function submit_template( array $params ) {
-		$waba = $this->find_waba( (int) ( $params['waba_id'] ?? 0 ) );
+		$waba = $this->find_waba( (int) ( $params['waba_id'] ?? 0 ), $params['tenant_id'] ?? null );
 		if ( ! $waba ) {
 			return new WP_Error( 'waba_not_found', 'WABA not found.', [ 'status' => 404 ] );
+		}
+		if ( ! empty( $params['phone_number_id'] ) && false === $this->phone_belongs_to_waba( (int) $params['phone_number_id'], $waba ) ) {
+			return new WP_Error( 'phone_number_not_in_waba', 'O numero informado nao pertence a esta WABA.', [ 'status' => 409 ] );
 		}
 
 		$template_payload = $this->template_payload( $params );
@@ -79,7 +82,7 @@ class TemplateRouterService {
 	}
 
 	public function list_templates( array $params ) {
-		$waba = $this->find_waba( (int) ( $params['waba_id'] ?? 0 ) );
+		$waba = $this->find_waba( (int) ( $params['waba_id'] ?? 0 ), $params['tenant_id'] ?? null );
 		if ( ! $waba ) {
 			return new WP_Error( 'waba_not_found', 'WABA not found.', [ 'status' => 404 ] );
 		}
@@ -109,7 +112,7 @@ class TemplateRouterService {
 		$table = TableNameResolver::getTemplatesTable();
 		$limit = max( 1, min( 200, (int) $limit ) );
 		$templates = $wpdb->get_results(
-			"SELECT * FROM $table WHERE deleted_at IS NULL AND status IN ('PENDING','IN_REVIEW','SUBMITTED') ORDER BY updated_at ASC LIMIT $limit"
+			"SELECT * FROM $table WHERE deleted_at IS NULL AND status IN ('LOCAL','PENDING','IN_REVIEW','SUBMITTED') ORDER BY updated_at ASC LIMIT $limit"
 		);
 
 		$summary = [
@@ -155,18 +158,28 @@ class TemplateRouterService {
 			$query['summary'] = 'total_count,message_template_count,message_template_limit,are_translations_complete';
 		}
 
-		$result = ( new MetaApiClient() )->get(
-			'templates.list',
-			[ 'waba_id' => $waba->waba_id ],
-			$query,
-			$token
-		);
+		$all_templates = [];
+		$summary = null;
+		$after = null;
+		$pages = 0;
+		do {
+			$page_query = $query;
+			if ( $after ) {
+				$page_query['after'] = $after;
+			}
+			$result = ( new MetaApiClient() )->get( 'templates.list', [ 'waba_id' => $waba->waba_id ], $page_query, $token );
+			if ( empty( $result['success'] ) ) {
+				return [ 'count' => 0, 'meta_summary' => null ];
+			}
+			if ( ! empty( $result['data'] ) && is_array( $result['data'] ) ) {
+				$all_templates = array_merge( $all_templates, $result['data'] );
+			}
+			$summary = $result['summary'] ?? $summary;
+			$after = $result['paging']['cursors']['after'] ?? null;
+			$pages++;
+		} while ( $after && $pages < 50 );
 
-		if ( empty( $result['success'] ) || empty( $result['data'] ) || ! is_array( $result['data'] ) ) {
-			return [ 'count' => 0, 'meta_summary' => null ];
-		}
-
-		foreach ( $result['data'] as $template ) {
+		foreach ( $all_templates as $template ) {
 			$this->upsert_template(
 				$waba,
 				[
@@ -189,8 +202,8 @@ class TemplateRouterService {
 		}
 
 		return [
-			'count'        => count( $result['data'] ),
-			'meta_summary' => $result['summary'] ?? null,
+			'count'        => count( $all_templates ),
+			'meta_summary' => $summary,
 		];
 	}
 
@@ -277,8 +290,18 @@ class TemplateRouterService {
 		}
 
 		$payload = $params;
-		unset( $payload['waba_id'], $payload['phone_number_id'], $payload['requested_callback_url'] );
+		unset( $payload['waba_id'], $payload['phone_number_id'], $payload['requested_callback_url'], $payload['tenant_id'], $payload['sync'], $payload['return_url'] );
 		return $payload;
+	}
+
+	private function phone_belongs_to_waba( $phone_id, $waba ) {
+		global $wpdb;
+		$table = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+		$known = $wpdb->get_var( "SELECT id FROM $table LIMIT 1" );
+		if ( ! $known ) {
+			return null;
+		}
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE id = %d AND tenant_id = %d AND whatsapp_account_id = %d LIMIT 1", (int) $phone_id, (int) $waba->tenant_id, (int) $waba->id ) );
 	}
 
 	private function sync_pending_template( $template ) {
@@ -460,9 +483,12 @@ class TemplateRouterService {
 		return ( new WebhookRouterService() )->record_synthetic_event( $item );
 	}
 
-	private function find_waba( $id ) {
+	private function find_waba( $id, $tenant_id = null ) {
 		global $wpdb;
 		$table = TableNameResolver::get_table_name( 'whatsapp_accounts' );
+		if ( $tenant_id ) {
+			return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d AND tenant_id = %d LIMIT 1", (int) $id, (int) $tenant_id ) );
+		}
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d LIMIT 1", (int) $id ) );
 	}
 

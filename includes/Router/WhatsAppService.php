@@ -47,6 +47,23 @@ class WhatsAppService {
 			return new WP_Error( 'phone_number_not_found', 'Numero interno do Router nao encontrado.', [ 'status' => 404 ] );
 		}
 
+		if ( 'template' === strtolower( $message_type ) ) {
+			$template = $this->find_approved_template( (int) $phone->tenant_id, (int) $phone->whatsapp_account_id, $message_payload );
+			if ( is_wp_error( $template ) ) {
+				return $template;
+			}
+			if ( $template ) {
+				$validated = $this->validated_template_payload( $template, $message_payload['template'] );
+				if ( is_wp_error( $validated ) ) {
+					return $validated;
+				}
+				$message_payload = [ 'template' => $validated ];
+			}
+			if ( false === $template ) {
+				return new WP_Error( 'template_not_approved', 'O template precisa existir na WABA deste numero e estar aprovado.', [ 'status' => 409 ] );
+			}
+		}
+
 		$token = ( new TokenService() )->get_active_token( (int) $phone->tenant_id, (int) $phone->whatsapp_account_id );
 		if ( ! $token ) {
 			return new WP_Error( 'meta_token_not_found', 'Token Meta ativo nao encontrado para a WABA.', [ 'status' => 409 ] );
@@ -352,6 +369,50 @@ class WhatsAppService {
 		);
 
 		return (int) $wpdb->insert_id;
+	}
+
+	private function find_approved_template( $tenant_id, $account_id, array $message_payload ) {
+		$template_payload = $message_payload['template'] ?? [];
+		$name = sanitize_text_field( $template_payload['name'] ?? '' );
+		$language = sanitize_text_field( $template_payload['language']['code'] ?? $template_payload['language'] ?? '' );
+		if ( ! $name || ! $language ) {
+			return null;
+		}
+		global $wpdb;
+		$table = TableNameResolver::getTemplatesTable();
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE tenant_id = %d AND whatsapp_account_id = %d AND name = %s AND language = %s AND deleted_at IS NULL LIMIT 1", (int) $tenant_id, (int) $account_id, $name, $language ) );
+		if ( ! $row ) {
+			// Compatibilidade com integrações legadas que ainda não sincronizaram
+			// o catálogo local. O backend continua validando quando há registro.
+			return null;
+		}
+		return 'APPROVED' === strtoupper( (string) $row->status ) ? $row : false;
+	}
+
+	private function validated_template_payload( $template, array $requested ) {
+		$payload = [
+			'name' => $template->name,
+			'language' => [ 'code' => $template->language ],
+			'components' => is_array( $requested['components'] ?? null ) ? $requested['components'] : [],
+		];
+		$stored = json_decode( $template->components_json ?? '[]', true );
+		$stored = is_array( $stored ) ? $stored : [];
+		$expected = 0;
+		foreach ( $stored as $component ) {
+			if ( 'BODY' === strtoupper( $component['type'] ?? '' ) ) {
+				$expected = substr_count( (string) ( $component['text'] ?? '' ), '{{' );
+			}
+		}
+		$actual = 0;
+		foreach ( $payload['components'] as $component ) {
+			if ( 'BODY' === strtoupper( $component['type'] ?? '' ) ) {
+				$actual = count( $component['parameters'] ?? [] );
+			}
+		}
+		if ( $expected && $expected !== $actual ) {
+			return new WP_Error( 'invalid_template_parameters', 'Quantidade de parametros do corpo do template invalida.', [ 'status' => 422 ] );
+		}
+		return $payload;
 	}
 
 	private function upsert_phone_from_meta( $account, array $number ) {

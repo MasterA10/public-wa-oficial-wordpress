@@ -187,6 +187,9 @@ class AdminRouterService {
 		}
 
 		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE waba_id = %s LIMIT 1", $meta_waba_id ) );
+		if ( $existing && (int) $existing->tenant_id !== $tenant_id ) {
+			return new WP_Error( 'waba_already_owned', 'Esta WABA ja esta associada a outro tenant.', [ 'status' => 409 ] );
+		}
 		$data = [
 			'tenant_id'        => $tenant_id,
 			'meta_app_id'      => $meta_app_id,
@@ -263,6 +266,9 @@ class AdminRouterService {
 		}
 
 		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE phone_number_id = %s LIMIT 1", $meta_phone_id ) );
+		if ( $existing && (int) $existing->tenant_id !== $tenant_id ) {
+			return new WP_Error( 'phone_number_already_owned', 'Este numero ja esta associado a outro tenant.', [ 'status' => 409 ] );
+		}
 		$data = [
 			'tenant_id'            => $tenant_id,
 			'whatsapp_account_id'  => $waba_id,

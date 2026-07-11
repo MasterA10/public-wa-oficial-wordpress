@@ -15,11 +15,7 @@ class SecretVault {
 			return null;
 		}
 
-		try {
-			return TokenVault::encrypt( (string) $value );
-		} catch ( \Throwable $e ) {
-			return (string) $value;
-		}
+		return TokenVault::encrypt( (string) $value );
 	}
 
 	public static function decrypt( $value ) {

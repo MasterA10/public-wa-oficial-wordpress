@@ -100,6 +100,18 @@ class RouterApiController {
 			'permission_callback' => '__return_true',
 		] );
 
+		register_rest_route( $namespace, '/v1/onboarding/meta/start', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'start_onboarding' ],
+			'permission_callback' => '__return_true',
+		] );
+
+		register_rest_route( $namespace, '/v1/onboarding/meta/attempts/(?P<attempt_id>[A-Za-z0-9-]+)', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'onboarding_status' ],
+			'permission_callback' => '__return_true',
+		] );
+
 		register_rest_route( $namespace, '/v1/onboarding/meta/embedded-signup', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'complete_embedded_signup' ],
@@ -115,6 +127,12 @@ class RouterApiController {
 		register_rest_route( $namespace, '/v1/whatsapp/send', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'send_message' ],
+			'permission_callback' => '__return_true',
+		] );
+
+		register_rest_route( $namespace, '/v1/whatsapp/connections/(?P<connection_id>\d+)/messages', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'send_connection_message' ],
 			'permission_callback' => '__return_true',
 		] );
 
@@ -452,6 +470,22 @@ class RouterApiController {
 		return $this->respond( ( new OnboardingService() )->complete_embedded_signup( $this->params( $request ) ) );
 	}
 
+	public function start_onboarding( WP_REST_Request $request ) {
+		$actor = $this->require_actor( $request );
+		if ( is_wp_error( $actor ) ) {
+			return $this->respond( $actor );
+		}
+		return $this->respond( ( new OnboardingService() )->start_embedded_signup( $this->params( $request ) ) );
+	}
+
+	public function onboarding_status( WP_REST_Request $request ) {
+		$actor = $this->require_actor( $request );
+		if ( is_wp_error( $actor ) ) {
+			return $this->respond( $actor );
+		}
+		return $this->respond( ( new OnboardingService() )->get_attempt_status( (int) ( $this->params( $request )['tenant_id'] ?? 0 ), $request->get_param( 'attempt_id' ) ) );
+	}
+
 	public function create_onboarding_bundle( WP_REST_Request $request ) {
 		$actor = $this->require_actor( $request );
 		if ( is_wp_error( $actor ) ) {
@@ -468,6 +502,11 @@ class RouterApiController {
 		}
 
 		return $this->respond( ( new WhatsAppService() )->send_message( $this->params( $request ), $actor ) );
+	}
+
+	public function send_connection_message( WP_REST_Request $request ) {
+		$request->set_param( 'phone_number_id', (int) $request->get_param( 'connection_id' ) );
+		return $this->send_message( $request );
 	}
 
 	public function get_phone_status( WP_REST_Request $request ) {
@@ -753,8 +792,8 @@ class RouterApiController {
 		$token = $request->get_param( 'hub_verify_token' ) ?: $request->get_param( 'hub.verify_token' );
 		$challenge = $request->get_param( 'hub_challenge' ) ?: $request->get_param( 'hub.challenge' );
 
-		$app = ( new \WAS\Meta\MetaAppRepository() )->get_active_app();
-		if ( 'subscribe' === $mode && $app && ! empty( $app->verify_token ) && hash_equals( (string) $app->verify_token, (string) $token ) ) {
+		$app = ( new \WAS\Meta\MetaAppRepository() )->get_active_app_for_verify_token( $token );
+		if ( 'subscribe' === $mode && $app ) {
 			return new WP_REST_Response( (string) $challenge, 200 );
 		}
 
@@ -767,12 +806,7 @@ class RouterApiController {
 			$raw_body = file_get_contents( 'php://input' );
 		}
 
-		$payload = json_decode( $raw_body, true );
-		if ( ! is_array( $payload ) ) {
-			return new WP_REST_Response( [ 'message' => 'Invalid payload' ], 400 );
-		}
-
-		$app = ( new MetaAppResolver() )->resolve_for_webhook_payload( $payload, true );
+		$app = ( new MetaAppResolver() )->resolve_for_webhook_raw_body( $raw_body, true );
 		if ( ! $app ) {
 			return new WP_REST_Response( [ 'message' => 'App not configured' ], 500 );
 		}
@@ -784,6 +818,11 @@ class RouterApiController {
 
 		if ( ! WebhookSignatureValidator::is_valid( $raw_body, $signature, $app->app_secret ) ) {
 			return new WP_REST_Response( [ 'message' => 'Invalid signature' ], 403 );
+		}
+
+		$payload = json_decode( $raw_body, true );
+		if ( ! is_array( $payload ) ) {
+			return new WP_REST_Response( [ 'message' => 'Invalid payload' ], 400 );
 		}
 
 		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, $raw_body, true );

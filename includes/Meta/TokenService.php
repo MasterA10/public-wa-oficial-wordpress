@@ -28,14 +28,14 @@ class TokenService {
 
         try {
             $encrypted = TokenVault::encrypt($access_token);
-        } catch (\Exception $e) {
+		} catch (\Throwable $e) {
             \WAS\Core\SystemLogger::logException($e, [
                 'context'   => 'TokenService::store_encrypted_token',
                 'tenant_id' => $tenant_id,
             ]);
-            // Se falhar a criptografia, vamos salvar puro apenas se estiver em modo demo ou se a chave não estiver definida, 
-            // seguindo a lógica do vault. Mas o ideal é que a chave exista.
-            $encrypted = $access_token;
+			// Nunca grave um access token em claro. A configuração de criptografia
+			// precisa ser corrigida antes de aceitar uma nova conexão.
+			return false;
         }
 
         // Desativa tokens anteriores para este tenant/conta se necessário, ou apenas insere novo.

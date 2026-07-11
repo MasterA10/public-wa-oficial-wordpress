@@ -11,6 +11,7 @@ use WP_REST_Request;
 use WP_REST_Response;
 use WAS\Auth\OnboardingSessionService;
 use WAS\Auth\TenantContext;
+use WAS\Router\OnboardingService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -39,6 +40,18 @@ class EmbeddedSignupController {
 	 * Register routes.
 	 */
 	public function register_routes() {
+		register_rest_route( 'was/v1', '/whatsapp/onboarding/start', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'start_embedded_signup' ],
+			'permission_callback' => [ Routes::class, 'check_auth' ],
+		] );
+
+		register_rest_route( 'was/v1', '/whatsapp/onboarding/attempts/(?P<attempt_id>[A-Za-z0-9-]+)', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'status' ],
+			'permission_callback' => [ Routes::class, 'check_auth' ],
+		] );
+
 		register_rest_route( 'was/v1', '/onboarding/whatsapp/start', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'start' ],
@@ -56,6 +69,26 @@ class EmbeddedSignupController {
 			'callback'            => [ $this, 'cancel' ],
 			'permission_callback' => [ Routes::class, 'check_auth' ],
 		] );
+	}
+
+	public function start_embedded_signup( $request ) {
+		$tenant_id = TenantContext::getTenantId();
+		$params = $request->get_json_params();
+		if ( ! is_array( $params ) || ! $params ) {
+			$params = $request->get_params();
+		}
+		$params['tenant_id'] = (int) $tenant_id;
+		$result = ( new OnboardingService() )->start_embedded_signup( $params );
+		return is_wp_error( $result )
+			? new WP_REST_Response( [ 'success' => false, 'error' => $result->get_error_code(), 'message' => $result->get_error_message() ], (int) ( $result->get_error_data()['status'] ?? 500 ) )
+			: new WP_REST_Response( $result, 200 );
+	}
+
+	public function status( $request ) {
+		$result = ( new OnboardingService() )->get_attempt_status( TenantContext::getTenantId(), $request->get_param( 'attempt_id' ) );
+		return is_wp_error( $result )
+			? new WP_REST_Response( [ 'success' => false, 'error' => $result->get_error_code(), 'message' => $result->get_error_message() ], (int) ( $result->get_error_data()['status'] ?? 500 ) )
+			: new WP_REST_Response( $result, 200 );
 	}
 
 	/**
