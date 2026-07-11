@@ -51,11 +51,13 @@ class ConversationRepository {
             return false;
         }
 
-        $conversation = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->table_name} WHERE contact_id = %d AND tenant_id = %d AND status = 'open'",
-            $contact_id,
-            $tenant_id
-        ));
+        $sql = "SELECT * FROM {$this->table_name} WHERE contact_id = %d AND tenant_id = %d AND status = 'open'";
+        $params = [$contact_id, $tenant_id];
+        if ($phone_number_id) {
+            $sql .= ' AND phone_number_id = %s';
+            $params[] = sanitize_text_field($phone_number_id);
+        }
+        $conversation = $wpdb->get_row($wpdb->prepare($sql, ...$params));
 
         if ($conversation) {
             return $conversation;
@@ -179,9 +181,9 @@ class ConversationRepository {
     /**
      * Busca uma conversa pelo ID.
      */
-    public function get_by_id($id) {
+    public function get_by_id($id, $tenant_id = null) {
         global $wpdb;
-        $tenant_id = TenantContext::get_tenant_id();
+        $tenant_id = $tenant_id ?: TenantContext::get_tenant_id();
 
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$this->table_name} WHERE id = %d AND tenant_id = %d",
@@ -193,22 +195,28 @@ class ConversationRepository {
     /**
      * Lista conversas do tenant ordenadas pela última mensagem.
      */
-    public function list_conversations($limit = 20, $offset = 0) {
+    public function list_conversations($limit = 20, $offset = 0, $tenant_id = null, $phone_number_id = '') {
         global $wpdb;
-        $tenant_id = TenantContext::get_tenant_id();
+        $tenant_id = $tenant_id ?: TenantContext::get_tenant_id();
 
         $contact_table = TableNameResolver::get_table_name('contacts');
+        $where = 'c.tenant_id = %d';
+        $params = [$tenant_id];
+        if ($phone_number_id) {
+            $where .= ' AND c.phone_number_id = %s';
+            $params[] = sanitize_text_field($phone_number_id);
+        }
+        $params[] = (int) $limit;
+        $params[] = (int) $offset;
 
         return $wpdb->get_results($wpdb->prepare(
             "SELECT c.*, ct.profile_name, ct.wa_id 
              FROM {$this->table_name} c
              JOIN {$contact_table} ct ON c.contact_id = ct.id
-             WHERE c.tenant_id = %d 
+             WHERE $where
              ORDER BY c.last_message_at DESC 
              LIMIT %d OFFSET %d",
-            $tenant_id,
-            $limit,
-            $offset
+            ...$params
         ));
     }
 }

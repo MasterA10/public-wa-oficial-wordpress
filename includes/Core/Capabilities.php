@@ -54,6 +54,17 @@ class Capabilities {
 
 		// Define SaaS roles.
 		self::add_saas_roles();
+
+		// Existing installations also receive the capabilities needed to open a
+		// number-specific chat from the Master screen.
+		foreach ( [ 'platform_admin', 'platform_support' ] as $role_name ) {
+			$role = get_role( $role_name );
+			if ( $role ) {
+				$role->add_cap( 'was_view_inbox' );
+				$role->add_cap( 'was_send_messages' );
+				$role->add_cap( 'was_assign_conversations' );
+			}
+		}
 	}
 
 	/**
@@ -68,6 +79,9 @@ class Capabilities {
 			'was_access_app'           => true,
 			'was_platform_admin'       => true,
 			'was_view_master_dashboard' => true,
+			'was_view_inbox'           => true,
+			'was_send_messages'       => true,
+			'was_assign_conversations' => true,
 			'was_view_logs'            => true,
 			'was_manage_compliance'    => true,
 		] );
@@ -76,6 +90,9 @@ class Capabilities {
 		add_role( 'platform_support', 'Platform Support', [
 			'was_access_app'           => true,
 			'was_view_master_dashboard' => true,
+			'was_view_inbox'           => true,
+			'was_send_messages'       => true,
+			'was_assign_conversations' => true,
 			'was_view_logs'            => true,
 		] );
 

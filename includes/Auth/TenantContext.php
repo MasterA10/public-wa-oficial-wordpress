@@ -23,12 +23,18 @@ class TenantContext {
 	 */
 	private static $current_tenant_id = null;
 
+	/** Tenant override for a single request, used by Master chat views. */
+	private static $runtime_tenant_id = null;
+
 	/**
 	 * Get the current tenant ID.
 	 *
 	 * @return int|null
 	 */
 	public static function get_current_tenant_id() {
+		if ( null !== self::$runtime_tenant_id ) {
+			return self::$runtime_tenant_id;
+		}
 		if ( null !== self::$current_tenant_id ) {
 			return self::$current_tenant_id;
 		}
@@ -85,6 +91,11 @@ class TenantContext {
 	 */
 	public static function set_tenant_id( $tenant_id ) {
 		self::set_current_tenant_id( $tenant_id );
+	}
+
+	/** Set a request-only tenant without changing the user's saved tenant. */
+	public static function set_runtime_tenant_id( $tenant_id ) {
+		self::$runtime_tenant_id = $tenant_id ? (int) $tenant_id : null;
 	}
 
 	/**

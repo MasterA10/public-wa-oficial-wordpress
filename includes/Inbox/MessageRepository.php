@@ -93,9 +93,9 @@ class MessageRepository {
     /**
      * Lista mensagens de uma conversa com join de mídia e preview de resposta.
      */
-    public function list_by_conversation($conversation_id, $limit = 50, $offset = 0) {
+    public function list_by_conversation($conversation_id, $limit = 50, $offset = 0, $tenant_id = null) {
         global $wpdb;
-        $tenant_id = TenantContext::get_tenant_id();
+        $tenant_id = $tenant_id ?: TenantContext::get_tenant_id();
         $media_table = TableNameResolver::get_table_name('media');
         $referral_table = TableNameResolver::getMessageReferralsTable();
 
@@ -125,9 +125,9 @@ class MessageRepository {
      * Lista mensagens novas de uma conversa (após um determinado ID).
      * Usado pelo sistema de polling em tempo real.
      */
-    public function list_new_messages($conversation_id, $after_id) {
+    public function list_new_messages($conversation_id, $after_id, $tenant_id = null) {
         global $wpdb;
-        $tenant_id = TenantContext::get_tenant_id();
+        $tenant_id = $tenant_id ?: TenantContext::get_tenant_id();
         $media_table = TableNameResolver::get_table_name('media');
         $referral_table = TableNameResolver::getMessageReferralsTable();
 

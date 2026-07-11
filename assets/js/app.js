@@ -484,6 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${p.quality_rating || 'UNKNOWN'}</td>
                         <td>
                             <button class="button test-msg" data-id="${p.id}">Testar Envio</button>
+                            <button class="button button-primary open-phone-chat" data-phone-id="${p.phone_number_id}" data-tenant-id="${p.tenant_id}" data-phone-display="${p.display_phone_number || ''}">Abrir chat</button>
                         </td>
                     </tr>
                 `).join('') || '<tr><td colspan="8">Nenhum número encontrado.</td></tr>';
@@ -492,6 +493,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     document.getElementById('master-test-phone-id').value = e.target.dataset.id;
                     modal.style.display = 'block';
+                }));
+                document.querySelectorAll('.open-phone-chat').forEach(b => b.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const button = e.currentTarget;
+                    const params = new URLSearchParams({
+                        was_phone_number_id: button.dataset.phoneId || '',
+                        was_tenant_id: button.dataset.tenantId || '',
+                        was_phone_display: button.dataset.phoneDisplay || ''
+                    });
+                    window.location.href = `${wasApp.adminUrl}inbox&${params.toString()}`;
                 }));
                 document.querySelectorAll('.was-master-phone-row').forEach(row => row.addEventListener('click', () => loadPhoneDetails(row.dataset.id)));
 
@@ -866,11 +877,29 @@ document.addEventListener('DOMContentLoaded', () => {
         initInbox();
     }
 
+    function inboxScopeQuery(separator = '?') {
+        const scope = window.wasInboxScope || {};
+        const params = new URLSearchParams();
+        if (scope.tenantId) params.set('tenant_id', scope.tenantId);
+        if (scope.phoneNumberId) params.set('phone_number_id', scope.phoneNumberId);
+        const query = params.toString();
+        return query ? `${separator}${query}` : '';
+    }
+
     function initInbox() {
         const btnRefresh = document.getElementById('was-refresh-conversations');
         const sendBtn = document.getElementById('was-send-message');
         const inputField = document.getElementById('was-message-input');
         const openTplBtn = document.getElementById('was-open-templates-inbox');
+        const pageParams = new URLSearchParams(window.location.search);
+        window.wasInboxScope = {
+            tenantId: pageParams.get('was_tenant_id') || '',
+            phoneNumberId: pageParams.get('was_phone_number_id') || ''
+        };
+        const phoneContext = document.getElementById('was-inbox-phone-context');
+        if (phoneContext && window.wasInboxScope.phoneNumberId) {
+            phoneContext.textContent = `Número: ${pageParams.get('was_phone_display') || window.wasInboxScope.phoneNumberId}`;
+        }
 
         if (btnRefresh) btnRefresh.addEventListener('click', fetchConversations);
         if (inputField && sendBtn) {
@@ -967,8 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (caption) formData.append('caption', caption);
                 if (replyToMessageId) formData.append('reply_to_message_id', replyToMessageId);
 
-                console.log('Starting fetch to:', `${wasApp.restUrl}/conversations/${currentConversationId}/messages/${mediaType}`);
-                const res = await fetch(`${wasApp.restUrl}/conversations/${currentConversationId}/messages/${mediaType}`, {
+                console.log('Starting fetch to:', `${wasApp.restUrl}/conversations/${currentConversationId}/messages/${mediaType}${inboxScopeQuery()}`);
+                const res = await fetch(`${wasApp.restUrl}/conversations/${currentConversationId}/messages/${mediaType}${inboxScopeQuery()}`, {
                     method: 'POST',
                     headers: { 'X-WP-Nonce': wasApp.nonce },
                     body: formData
@@ -1013,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!listContainer) return;
         listContainer.innerHTML = '<div class="was-loading-state">Carregando...</div>';
         try {
-            const response = await wasApiFetch('/conversations');
+            const response = await wasApiFetch(`/conversations${inboxScopeQuery()}`);
             const conversations = response.data || [];
             listContainer.innerHTML = '';
             if (conversations.length === 0) { listContainer.innerHTML = '<div class="was-empty-state">Vazio</div>'; return; }
@@ -1043,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const historyContainer = document.getElementById('was-messages-history');
         historyContainer.innerHTML = '<div class="was-loading-state">...</div>';
         try {
-            const response = await wasApiFetch(`/conversations/${id}`);
+            const response = await wasApiFetch(`/conversations/${id}${inboxScopeQuery()}`);
             const messages = response.data?.messages || [];
             historyContainer.innerHTML = '';
             messages.forEach(msg => {
@@ -1066,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateWindowStatus(id) {
         if (!id || id !== currentConversationId) return;
         try {
-            const data = await wasApiFetch(`/conversations/${id}/window`);
+            const data = await wasApiFetch(`/conversations/${id}/window${inboxScopeQuery()}`);
             currentWindowData = data;
             renderWindowStatus(data);
 
@@ -1122,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function pollNewMessages() {
         if (!currentConversationId || !lastMessageId) return;
         try {
-            const res = await wasApiFetch(`/conversations/${currentConversationId}/poll?after_id=${lastMessageId}`);
+            const res = await wasApiFetch(`/conversations/${currentConversationId}/poll?after_id=${lastMessageId}${inboxScopeQuery('&')}`);
             const newMsgs = res.data || [];
             if (newMsgs.length === 0) return;
 
@@ -1178,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastMessageSentAt = Date.now();
             lastTypingSentAt = 0;
             
-            const res = await wasApiFetch(`/conversations/${currentConversationId}/messages/text`, 'POST', { 
+            const res = await wasApiFetch(`/conversations/${currentConversationId}/messages/text${inboxScopeQuery()}`, 'POST', {
                 text: body,
                 reply_to_message_id: replyToMessageId
             });
@@ -2136,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastTypingSentAt = now;
 
         try {
-            await wasApiFetch(`/conversations/${currentConversationId}/messages/${lastInboundMessageId}/typing`, 'POST');
+            await wasApiFetch(`/conversations/${currentConversationId}/messages/${lastInboundMessageId}/typing${inboxScopeQuery()}`, 'POST');
         } catch (err) {
             console.error('Falha ao enviar typing indicator:', err);
         }
@@ -2299,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.sendTemplateFromInbox = async (id) => {
         if (!confirm('Enviar este template?')) return;
         try {
-            const res = await wasApiFetch(`/templates/${id}/send`, 'POST', { conversation_id: currentConversationId });
+            const res = await wasApiFetch(`/templates/${id}/send${inboxScopeQuery()}`, 'POST', { conversation_id: currentConversationId });
             if (res.success) {
                 alert('Enviado!'); 
                 document.getElementById('was-inbox-tpl-modal').style.display = 'none';

@@ -10,7 +10,10 @@ if (!defined('ABSPATH')) {
     <!-- Sidebar: Conversas -->
     <aside class="was-inbox-sidebar">
         <div class="was-inbox-header">
-            <h2>Conversas</h2>
+            <div>
+                <h2>Conversas</h2>
+                <div id="was-inbox-phone-context" class="description" style="font-size:12px;"></div>
+            </div>
             <div class="was-inbox-actions">
                 <button id="was-refresh-conversations" class="was-btn-icon" title="Atualizar">
                     <span class="dashicons dashicons-update"></span>

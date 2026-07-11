@@ -96,6 +96,7 @@ class InboxApiController {
      * Retorna o status da janela de atendimento de 24 horas.
      */
     public function get_window_status($request) {
+        $this->apply_request_context($request);
         $id = $request['id'];
         $conversation = $this->conversation_repo->get_by_id($id);
 
@@ -117,6 +118,7 @@ class InboxApiController {
      * Envia uma mensagem de texto em uma conversa.
      */
     public function send_text_message($request) {
+        $this->apply_request_context($request);
         $id   = $request['id'];
         $text = $request->get_param('text');
         $reply_to = $request->get_param('reply_to_message_id');
@@ -206,6 +208,7 @@ class InboxApiController {
      * Envia uma mensagem de mídia (imagem, áudio, etc).
      */
     public function send_media_message($request) {
+        $this->apply_request_context($request);
         $id = $request['id'];
         $mediaType = $request['media_type'];
         $caption = $request->get_param('caption') ?: '';
@@ -306,6 +309,7 @@ class InboxApiController {
      * Atribui uma conversa a um atendente.
      */
     public function assign_conversation($request) {
+        $this->apply_request_context($request);
         $id      = $request['id'];
         $user_id = $request->get_param('user_id');
 
@@ -336,6 +340,7 @@ class InboxApiController {
      * Envia uma mensagem em uma conversa.
      */
     public function send_message($request) {
+        $this->apply_request_context($request);
         $id      = $request['id'];
         $type    = $request->get_param('type') ?: 'text';
         $body    = $request->get_param('body');
@@ -395,10 +400,12 @@ class InboxApiController {
      * Lista conversas do tenant atual.
      */
     public function get_conversations($request) {
+        $this->apply_request_context($request);
         $limit  = $request->get_param('limit') ?: 20;
         $offset = $request->get_param('offset') ?: 0;
+        $phone_number_id = sanitize_text_field($request->get_param('phone_number_id') ?: '');
 
-        $conversations = $this->conversation_repo->list_conversations($limit, $offset);
+        $conversations = $this->conversation_repo->list_conversations($limit, $offset, TenantContext::get_tenant_id(), $phone_number_id);
 
         return new \WP_REST_Response([
             'success' => true,
@@ -406,10 +413,19 @@ class InboxApiController {
         ], 200);
     }
 
+    /** Apply a Master-only tenant override for cross-tenant phone chats. */
+    private function apply_request_context($request) {
+        $tenant_id = (int) $request->get_param('tenant_id');
+        if ($tenant_id && current_user_can('was_view_master_dashboard')) {
+            TenantContext::set_runtime_tenant_id($tenant_id);
+        }
+    }
+
     /**
      * Busca detalhes e mensagens de uma conversa (WAS-075).
      */
     public function get_conversation_detail($request) {
+        $this->apply_request_context($request);
         $id = $request['id'];
         
         $conversation = $this->conversation_repo->get_by_id($id);
@@ -418,7 +434,7 @@ class InboxApiController {
             return new \WP_REST_Error('not_found', 'Conversa não encontrada', ['status' => 404]);
         }
 
-        $messages = $this->message_repo->list_by_conversation($id);
+        $messages = $this->message_repo->list_by_conversation($id, 50, 0, TenantContext::get_tenant_id());
 
         // Formatar reply_preview e referral
         $reply_count = 0;
@@ -474,6 +490,7 @@ class InboxApiController {
      * Polling: retorna apenas mensagens novas (após um determinado ID).
      */
     public function poll_new_messages($request) {
+        $this->apply_request_context($request);
         $id = $request['id'];
         $after_id = (int) $request->get_param('after_id');
 
@@ -481,7 +498,7 @@ class InboxApiController {
             return new \WP_REST_Response(['success' => false, 'message' => 'Parâmetro after_id é obrigatório'], 400);
         }
 
-        $messages = $this->message_repo->list_new_messages($id, $after_id);
+        $messages = $this->message_repo->list_new_messages($id, $after_id, TenantContext::get_tenant_id());
 
         if ($messages) {
             foreach ($messages as $msg) {
@@ -524,6 +541,7 @@ class InboxApiController {
      * Aciona o indicador de "digitando..." (WAS-090).
      */
     public function send_typing_indicator($request) {
+        $this->apply_request_context($request);
         $conversation_id = (int) $request['id'];
         $message_id      = $request->get_param('message_id') ? (int) $request->get_param('message_id') : null;
 
@@ -549,4 +567,5 @@ class InboxApiController {
             return new \WP_REST_Response(['success' => false, 'message' => 'Erro interno ao processar indicador.'], 500);
         }
     }
+
 }
