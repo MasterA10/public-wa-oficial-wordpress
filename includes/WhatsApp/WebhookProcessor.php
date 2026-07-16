@@ -6,6 +6,7 @@ use WAS\Inbox\InboundMessageService;
 use WAS\Inbox\ContactRepository;
 use WAS\Inbox\ConversationRepository;
 use WAS\Inbox\MessageRepository;
+use WAS\Inbox\OutboundEchoMessageService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -42,7 +43,7 @@ class WebhookProcessor {
         ]);
         $event_id = $wpdb->insert_id;
 
-        // 4. Se for mensagem, rotear para InboundMessageService
+        // 4. Processar mensagens recebidas e echos enviados pelo WhatsApp App.
         if ($this->is_message_event($payload)) {
             try {
                 $success = $this->handle_message_event($payload, $tenant_id, $phone_number_id, $event_id);
@@ -59,7 +60,28 @@ class WebhookProcessor {
                     'event_id'        => $event_id
                 ]);
             }
-        } elseif ($this->is_status_event($payload)) {
+        }
+
+        if ($this->is_echo_event($payload)) {
+            try {
+                $success = $this->handle_echo_events($payload, $tenant_id, $event_id);
+                if (!$success) {
+                    \WAS\Core\SystemLogger::logWarning('Echo outbound não foi persistido na Inbox.', [
+                        'waba_id' => $waba_id,
+                        'phone' => $phone_number_id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \WAS\Core\SystemLogger::logException($e, [
+                    'context' => 'WebhookProcessor::echo_event',
+                    'tenant_id' => $tenant_id,
+                    'phone_number_id' => $phone_number_id,
+                    'event_id' => $event_id,
+                ]);
+            }
+        }
+
+        if (!$this->is_message_event($payload) && !$this->is_echo_event($payload) && $this->is_status_event($payload)) {
             try {
                 $this->handle_status_event($payload, $tenant_id, $event_id);
             } catch (\Throwable $e) {
@@ -114,6 +136,18 @@ class WebhookProcessor {
 
     private function is_message_event($payload) {
         return isset($payload['entry'][0]['changes'][0]['value']['messages']);
+    }
+
+    private function is_echo_event($payload) {
+        foreach (($payload['entry'] ?? []) as $entry) {
+            foreach (($entry['changes'] ?? []) as $change) {
+                $value = $change['value'] ?? [];
+                if (!empty($value['message_echoes']) || !empty($value['smb_message_echoes']) || !empty($value['echoes'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private function is_status_event($payload) {
@@ -206,5 +240,38 @@ class WebhookProcessor {
 
         $message_repo = new MessageRepository();
         return $message_repo->update_status($wa_message_id, $status);
+    }
+
+    private function handle_echo_events($payload, $tenant_id, $event_id) {
+        $processed = false;
+        $service = new OutboundEchoMessageService();
+
+        foreach (($payload['entry'] ?? []) as $entry) {
+            foreach (($entry['changes'] ?? []) as $change) {
+                $value = $change['value'] ?? [];
+                $metadata = $value['metadata'] ?? [];
+                $phone_number_id = $metadata['phone_number_id'] ?? ($value['phone_number_id'] ?? null);
+                $echoes = $value['message_echoes'] ?? $value['smb_message_echoes'] ?? $value['echoes'] ?? [];
+                $contacts = $value['contacts'] ?? [];
+
+                foreach ($echoes as $index => $echo) {
+                    $normalized = OutboundEchoMessageService::normalize($echo);
+                    $contact = $contacts[$index] ?? $contacts[0] ?? [];
+                    $dto = array_merge($normalized, [
+                        'tenant_id'       => $tenant_id,
+                        'phone_number_id' => $phone_number_id,
+                        'to'              => $echo['to'] ?? $echo['recipient'] ?? null,
+                        'profile_name'    => $contact['profile']['name'] ?? '',
+                        'raw_message'     => $echo,
+                    ]);
+
+                    if ($service->handle($dto)) {
+                        $processed = true;
+                    }
+                }
+            }
+        }
+
+        return $processed;
     }
 }

@@ -21,7 +21,7 @@ class InboundMediaService {
         $this->media_repo = new MediaRepository();
     }
 
-    public function handle_inbound_media($tenant_id, $conversation_id, $message_id, $media_id, $media_type, $mime_type) {
+    public function handle_inbound_media($tenant_id, $conversation_id, $message_id, $media_id, $media_type, $mime_type, $direction = 'inbound') {
         // 1. Registrar mídia localmente
         $local_media_id = $this->media_repo->create([
             'tenant_id'       => $tenant_id,
@@ -30,7 +30,7 @@ class InboundMediaService {
             'meta_media_id'   => $media_id,
             'media_type'      => $media_type,
             'mime_type'       => $mime_type,
-            'direction'       => 'inbound',
+            'direction'       => $direction,
             'status'          => 'pending'
         ]);
 
@@ -74,9 +74,9 @@ class InboundMediaService {
             'status'       => 'downloaded'
         ]);
 
-        \WAS\Compliance\AuditLogger::log('media_received', 'media', $local_media_id, [
+        \WAS\Compliance\AuditLogger::log('outbound' === $direction ? 'media_sent' : 'media_received', 'media', $local_media_id, [
             'conversation_id' => $conversation_id,
-            'media_type'      => $mediaType,
+            'media_type'      => $media_type,
             'meta_id'         => $media_id
         ]);
 
@@ -84,13 +84,15 @@ class InboundMediaService {
     }
 
     private function get_extension($mime) {
+        $mime = strtolower(trim(explode(';', (string) $mime, 2)[0]));
         $map = [
             'image/jpeg' => '.jpg',
             'image/png'  => '.png',
+            'image/webp' => '.webp',
             'audio/ogg'  => '.ogg',
             'audio/mpeg' => '.mp3',
             'audio/aac'  => '.aac',
-            'audio/mp4'  => '.mp4',
+            'audio/mp4'  => '.m4a',
             'video/mp4'  => '.mp4',
             'application/pdf' => '.pdf'
         ];
