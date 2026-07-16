@@ -4,3 +4,4 @@
 *.local
 secrets-*.md
 .DS_Store
+._*
