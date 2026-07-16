@@ -3,6 +3,7 @@
 use WAS\Core\TableNameResolver;
 use WAS\Router\RouteRepository;
 use WAS\Router\WebhookRouterService;
+use WAS\WhatsApp\WebhookProcessor;
 
 class WebhookRouterServiceTest extends WAS_Router_TestCase {
 
@@ -598,6 +599,138 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=image-media', $delivered['payload']['media']['download_url'] );
 		$this->assert_true( str_contains( $GLOBALS['was_test_http_gets'][0]['url'], '/v25.0/image-media-id' ) );
 		$this->assert_same( 'Bearer waba-token', $GLOBALS['was_test_http_gets'][0]['args']['headers']['Authorization'] );
+	}
+
+	public function test_route_payload_reuses_public_url_from_media_already_downloaded_by_inbox() {
+		global $wpdb;
+
+		$wpdb->insert(
+			TableNameResolver::get_table_name( 'media' ),
+			[
+				'id'              => 91,
+				'tenant_id'       => 1,
+				'conversation_id' => 30,
+				'message_id'      => 31,
+				'meta_media_id'   => 'image-media-local',
+				'media_type'      => 'image',
+				'mime_type'       => 'image/jpeg',
+				'direction'       => 'inbound',
+				'public_url'      => 'https://wordpress.test/uploads/was-inbox-image.jpg',
+				'storage_path'    => '/var/www/uploads/was-inbox-image.jpg',
+				'file_size'       => 1234,
+				'status'          => 'downloaded',
+				'created_at'      => current_time( 'mysql', true ),
+				'updated_at'      => current_time( 'mysql', true ),
+			]
+		);
+
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'metadata' => [ 'phone_number_id' => 'meta-phone-1' ],
+								'messages' => [
+									[
+										'id'    => 'wamid-local-media',
+										'from'  => '5531999000001',
+										'type'  => 'image',
+										'image' => [ 'id' => 'image-media-local', 'mime_type' => 'image/jpeg' ],
+									],
+								],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+		$delivered = json_decode( $GLOBALS['was_test_http_posts'][0]['args']['body'], true );
+
+		$this->assert_same( 'https://wordpress.test/uploads/was-inbox-image.jpg', $delivered['payload']['media']['public_url'] );
+		$this->assert_same( 'https://wordpress.test/uploads/was-inbox-image.jpg', $delivered['payload']['media']['download_url'] );
+		$this->assert_false( $delivered['payload']['media']['url_requires_authorization'] );
+		$this->assert_same( 'stored', $delivered['payload']['media']['storage_status'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_gets'] );
+	}
+
+	public function test_webhook_downloads_media_locally_before_route_receives_public_url() {
+		global $wpdb;
+
+		$wpdb->insert(
+			TableNameResolver::get_table_name( 'contacts' ),
+			[
+				'id'                => 40,
+				'tenant_id'         => 1,
+				'wa_id'             => '5531999000005',
+				'phone'             => '5531999000005',
+				'normalized_phone'  => '5531999000005',
+				'phone_status'      => 'confirmed_by_wa_id',
+				'profile_name'      => 'Cliente da rota',
+				'name_locked'       => 0,
+				'created_at'        => current_time( 'mysql', true ),
+				'updated_at'        => current_time( 'mysql', true ),
+			]
+		);
+
+		$GLOBALS['was_test_http_response_queue'] = [
+			[
+				'code' => 200,
+				'body' => [
+					'url'       => 'https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=full-flow-image',
+					'mime_type' => 'image/jpeg',
+				],
+			],
+			[
+				'code' => 200,
+				'body' => 'image-from-facebook',
+			],
+		];
+
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'metadata' => [ 'phone_number_id' => 'meta-phone-1' ],
+								'contacts' => [ [ 'wa_id' => '5531999000005', 'profile' => [ 'name' => 'Cliente da rota' ] ] ],
+								'messages' => [
+									[
+										'id'    => 'wamid-full-flow-image',
+										'from'  => '5531999000005',
+										'timestamp' => '1784214718',
+										'type'  => 'image',
+										'image' => [ 'id' => 'full-flow-image-id', 'mime_type' => 'image/jpeg' ],
+									],
+								],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		( new WebhookProcessor() )->process( $payload );
+		( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+
+		$media = $wpdb->tables[ TableNameResolver::get_table_name( 'media' ) ][0];
+		$delivered = json_decode( $GLOBALS['was_test_http_posts'][0]['args']['body'], true );
+
+		$this->assert_same( 'downloaded', $media['status'] );
+		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $media['public_url'] );
+		$this->assert_same( 'image-from-facebook', $GLOBALS['was_test_uploads'][0]['bits'] );
+		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $delivered['payload']['media']['public_url'] );
+		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $delivered['payload']['media']['download_url'] );
+		$this->assert_count( 2, $GLOBALS['was_test_http_gets'] );
 	}
 
 	public function test_inbound_media_can_be_stored_in_wordpress_uploads() {

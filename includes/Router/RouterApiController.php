@@ -825,13 +825,13 @@ class RouterApiController {
 			return new WP_REST_Response( [ 'message' => 'Invalid payload' ], 400 );
 		}
 
-		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, $raw_body, true );
-
 		try {
 			( new WebhookProcessor() )->process( $payload );
 		} catch ( \Throwable $e ) {
 			\WAS\Core\SystemLogger::logException( $e, [ 'context' => 'RouterApiController::receive_meta_webhook.local_processor' ] );
 		}
+
+		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, $raw_body, true );
 
 		return new WP_REST_Response( $result, 200 );
 	}

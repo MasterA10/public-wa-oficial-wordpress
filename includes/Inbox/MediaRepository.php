@@ -42,6 +42,32 @@ class MediaRepository {
         ));
     }
 
+    /**
+     * Busca a cópia pública já baixada pelo processamento local do webhook.
+     */
+    public function find_downloaded_by_meta_id($meta_media_id, $tenant_id = null) {
+        global $wpdb;
+
+        $tenant_id = $tenant_id ?: TenantContext::get_tenant_id();
+        if (!$tenant_id || !$meta_media_id) {
+            return null;
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE meta_media_id = %s AND tenant_id = %d ORDER BY id DESC LIMIT 20",
+            (string) $meta_media_id,
+            (int) $tenant_id
+        ));
+
+        foreach ($rows as $row) {
+            if ('downloaded' === ($row->status ?? '') && !empty($row->public_url)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
     public function update($id, $data) {
         global $wpdb;
         $tenant_id = TenantContext::get_tenant_id();

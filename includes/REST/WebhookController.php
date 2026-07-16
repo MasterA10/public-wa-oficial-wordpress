@@ -82,12 +82,17 @@ class WebhookController {
 			return new WP_REST_Response(['message' => 'Invalid payload'], 400);
 		}
 
-        // 2. Processar evento como Router oficial: normaliza, persiste, aplica rotas e entrega via outbox.
-        (new \WAS\Router\WebhookRouterService())->process_meta_payload($payload, $raw_body, true);
+		// 2. Processar primeiro a Inbox para que mídias recebidas sejam baixadas
+		// e tenham uma URL pública antes da entrega às rotas externas.
+		try {
+			(new \WAS\WhatsApp\WebhookProcessor())->process($payload);
+		} catch (\Throwable $e) {
+			\WAS\Core\SystemLogger::logException($e, ['context' => 'WebhookController::receive_event.local_processor']);
+		}
 
-        // 3. Manter processamento local do plugin para inbox/status/templates.
-        $processor = new \WAS\WhatsApp\WebhookProcessor();
-        $processor->process($payload);
+		// 3. O roteador reutiliza a mídia local quando disponível e entrega o
+		// payload normalizado já contendo a URL pública do WordPress.
+		(new \WAS\Router\WebhookRouterService())->process_meta_payload($payload, $raw_body, true);
 
         // Registrar sucesso
         \WAS\WhatsApp\WebhookLogger::log_event($payload, $headers, 200, 'Success');

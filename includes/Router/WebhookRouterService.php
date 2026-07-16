@@ -3,6 +3,7 @@
 namespace WAS\Router;
 
 use WAS\Core\TableNameResolver;
+use WAS\Inbox\MediaRepository;
 use WAS\Meta\MetaApiClient;
 use WAS\Meta\TokenService;
 
@@ -688,6 +689,32 @@ class WebhookRouterService {
 
 		if ( ! $phone || ! $account ) {
 			$media['url_status'] = 'missing_phone_context';
+			return $this->attach_media_payload( $item, $media, $message_type );
+		}
+
+		// O processamento local da Inbox pode já ter baixado a mídia para o
+		// WordPress. Reutilize essa cópia para as rotas externas, evitando uma
+		// segunda chamada à Meta e garantindo uma URL pública estável.
+		$local_media = ( new MediaRepository() )->find_downloaded_by_meta_id(
+			$media['id'],
+			(int) $phone->tenant_id
+		);
+		if ( $local_media ) {
+			$media = array_merge(
+				$media,
+				[
+					'public_url'                  => $local_media->public_url,
+					'url'                         => $local_media->public_url,
+					'download_url'                => $local_media->public_url,
+					'url_status'                 => 'stored',
+					'url_requires_authorization' => false,
+					'storage_status'             => 'stored',
+					'storage_backend'            => 'wordpress',
+					'storage_path'               => $local_media->storage_path ?? null,
+					'file_size'                  => $local_media->file_size ?? null,
+				]
+			);
+
 			return $this->attach_media_payload( $item, $media, $message_type );
 		}
 
