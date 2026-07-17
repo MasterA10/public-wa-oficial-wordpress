@@ -67,10 +67,27 @@ class OutboundMediaService {
         }
 
         $phone_service = new PhoneNumberService();
-        $phone_number_id = $phone_service->get_primary_id($tenant_id);
-        $token = $this->token_service->get_active_token($tenant_id);
+        $phone_number_id = trim((string) ($conversation->phone_number_id ?? ''));
+        $phone = null;
 
-        if (!$phone_number_id || !$token) {
+        if ($phone_number_id) {
+            $phone = $phone_service->get_by_phone_number_id($tenant_id, $phone_number_id);
+        } else {
+            $phone_number_id = $phone_service->get_primary_id($tenant_id);
+            if ($phone_number_id) {
+                $phone = $phone_service->get_by_phone_number_id($tenant_id, $phone_number_id);
+                \WAS\Core\SystemLogger::logWarning('Conversa sem phone_number_id; usando número principal legado para mídia.', [
+                    'conversation_id' => $conversation_id,
+                    'tenant_id' => $tenant_id,
+                ]);
+            }
+        }
+
+        $token = $phone
+            ? $this->token_service->get_active_token($tenant_id, (int) $phone->whatsapp_account_id)
+            : null;
+
+        if (!$phone || !$phone_number_id || !$token) {
             \WAS\Core\SystemLogger::logError('Configuração de envio de mídia incompleta.', ['tenant_id' => $tenant_id]);
             throw new \Exception('Configuração de envio incompleta.');
         }

@@ -68,8 +68,21 @@ final class TypingIndicatorService {
         }
 
         // 4. Busca configurações de envio
-        $phone_number_id = $this->phone_service->get_primary_id($tenant_id);
-        $token = $this->token_service->get_active_token($tenant_id);
+        $phone_number_id = trim((string) ($conversation->phone_number_id ?? ''));
+        $phone = $phone_number_id
+            ? $this->phone_service->get_by_phone_number_id($tenant_id, $phone_number_id)
+            : null;
+
+        if (!$phone_number_id) {
+            $phone_number_id = $this->phone_service->get_primary_id($tenant_id);
+            $phone = $phone_number_id
+                ? $this->phone_service->get_by_phone_number_id($tenant_id, $phone_number_id)
+                : null;
+        }
+
+        $token = $phone
+            ? $this->token_service->get_active_token($tenant_id, (int) $phone->whatsapp_account_id)
+            : null;
 
         if (!$phone_number_id || !$token) {
             return ['success' => false, 'error' => 'Configurações de WhatsApp incompletas.'];

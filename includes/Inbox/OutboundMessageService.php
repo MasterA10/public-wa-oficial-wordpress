@@ -64,12 +64,32 @@ class OutboundMessageService {
             ];
         }
 
-        $phone_number_id = $this->phone_service->get_primary_id($tenant_id);
-        $token = $this->token_service->get_active_token($tenant_id);
+        $phone_number_id = trim((string) ($conversation->phone_number_id ?? ''));
+        $phone = null;
 
-        if (!$phone_number_id || !$token) {
+        // Conversas novas sempre carregam o número Meta que recebeu a
+        // mensagem. Só usamos o default para conversas legadas sem vínculo.
+        if ($phone_number_id) {
+            $phone = $this->phone_service->get_by_phone_number_id($tenant_id, $phone_number_id);
+        } else {
+            $phone_number_id = $this->phone_service->get_primary_id($tenant_id);
+            if ($phone_number_id) {
+                $phone = $this->phone_service->get_by_phone_number_id($tenant_id, $phone_number_id);
+                \WAS\Core\SystemLogger::logWarning('Conversa sem phone_number_id; usando número principal legado.', [
+                    'conversation_id' => $conversation_id,
+                    'tenant_id' => $tenant_id,
+                ]);
+            }
+        }
+
+        $token = $phone
+            ? $this->token_service->get_active_token($tenant_id, (int) $phone->whatsapp_account_id)
+            : null;
+
+        if (!$phone || !$phone_number_id || !$token) {
             $missing_config = [];
-            if (!$phone_number_id) $missing_config[] = 'WhatsApp Phone Number ID não configurado ou não é o padrão.';
+            if (!$phone_number_id) $missing_config[] = 'WhatsApp Phone Number ID não vinculado à conversa.';
+            if ($phone_number_id && !$phone) $missing_config[] = 'Número WhatsApp da conversa não pertence a este tenant.';
             if (!$token) $missing_config[] = 'Meta Access Token não encontrado, expirado ou inválido.';
             
             $error_message = 'Falha de configuração ao tentar enviar mensagem: ' . implode(' ', $missing_config);

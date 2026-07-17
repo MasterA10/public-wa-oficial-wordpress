@@ -58,6 +58,24 @@ class PhoneNumberService {
         ));
     }
 
+    /**
+     * Obtém um número específico do tenant pelo ID externo da Meta.
+     */
+    public function get_by_phone_number_id($tenant_id, $phone_number_id) {
+        global $wpdb;
+        $table = TableNameResolver::get_table_name('whatsapp_phone_numbers');
+
+        if (!$tenant_id || !$phone_number_id) {
+            return null;
+        }
+
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE tenant_id = %d AND phone_number_id = %s LIMIT 1",
+            (int) $tenant_id,
+            (string) $phone_number_id
+        ));
+    }
+
     private function get_whatsapp_account_id_for_tenant($tenant_id) {
         global $wpdb;
         $accounts_table = TableNameResolver::get_table_name('whatsapp_accounts');

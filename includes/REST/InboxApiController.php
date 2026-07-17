@@ -363,7 +363,7 @@ class InboxApiController {
 
             // Chamar serviço de envio (Dev 02)
             $dispatch_service = new \WAS\WhatsApp\MessageDispatchService();
-            $result = $dispatch_service->send_message($contact->wa_id, $type, $body, $tenant_id);
+            $result = $dispatch_service->send_message($contact->wa_id, $type, $body, $tenant_id, $conversation->phone_number_id ?? null);
 
             if ($result['success']) {
                 // Salvar no repositório local

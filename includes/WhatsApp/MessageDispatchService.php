@@ -19,7 +19,7 @@ class MessageDispatchService {
     /**
      * Método principal para envio (usado pela Inbox).
      */
-    public function send_message(string $to, string $type, string $content, int $tenant_id) {
+    public function send_message(string $to, string $type, string $content, int $tenant_id, ?string $conversation_phone_number_id = null) {
         // 0. Verificar Modo Demo Automático
         if (\WAS\Core\Plugin::is_demo_mode()) {
             return [
@@ -31,10 +31,12 @@ class MessageDispatchService {
         // 1. Buscar Token e Phone ID do Tenant
         $phone_repo = new PhoneNumberRepository();
         $token_vault = new TokenVault();
-        
-        $phone = $phone_repo->getDefaultByTenant($tenant_id);
+
+        $phone = $conversation_phone_number_id
+            ? (new PhoneNumberService())->get_by_phone_number_id($tenant_id, $conversation_phone_number_id)
+            : $phone_repo->getDefaultByTenant($tenant_id);
         if (!$phone) {
-            return ['success' => false, 'error' => 'Nenhum número configurado para este tenant.'];
+            return ['success' => false, 'error' => 'Número WhatsApp não encontrado para esta conversa.'];
         }
 
         $token = $token_vault->get_valid_token($tenant_id, $phone->whatsapp_account_id);
