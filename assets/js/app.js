@@ -174,6 +174,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 master_log_retention: document.getElementById('master_log_retention').value,
                 master_polling_interval: document.getElementById('master_polling_interval').value
             };
+            const webhookSecret = document.getElementById('external_send_webhook_secret');
+            if (webhookSecret && webhookSecret.value) {
+                payload.external_send_webhook_secret = webhookSecret.value;
+            }
             try {
                 await wasApiFetch('/admin/settings', 'POST', payload);
                 alert('Configurações master salvas com sucesso!');

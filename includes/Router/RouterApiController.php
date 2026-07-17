@@ -130,6 +130,12 @@ class RouterApiController {
 			'permission_callback' => '__return_true',
 		] );
 
+		register_rest_route( $namespace, '/v1/webhooks/send', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'receive_external_send_webhook' ],
+			'permission_callback' => '__return_true',
+		] );
+
 		register_rest_route( $namespace, '/v1/whatsapp/connections/(?P<connection_id>\d+)/messages', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'send_connection_message' ],
@@ -502,6 +508,20 @@ class RouterApiController {
 		}
 
 		return $this->respond( ( new WhatsAppService() )->send_message( $this->params( $request ), $actor ) );
+	}
+
+	public function receive_external_send_webhook( WP_REST_Request $request ) {
+		$expected = RouterSettings::get_external_send_webhook_secret();
+		$provided = (string) ( $request->get_header( 'x-was-webhook-secret' ) ?: $request->get_header( 'x-webhook-secret' ) );
+
+		if ( ! $expected ) {
+			return $this->respond( new WP_Error( 'external_send_webhook_not_configured', 'O segredo do webhook de envio nao foi configurado.', [ 'status' => 503 ] ) );
+		}
+		if ( ! $provided || ! hash_equals( $expected, $provided ) ) {
+			return $this->respond( new WP_Error( 'external_send_webhook_unauthorized', 'Segredo do webhook invalido.', [ 'status' => 401 ] ) );
+		}
+
+		return $this->respond( ( new ExternalSendWebhookService() )->send( $this->params( $request ) ) );
 	}
 
 	public function send_connection_message( WP_REST_Request $request ) {

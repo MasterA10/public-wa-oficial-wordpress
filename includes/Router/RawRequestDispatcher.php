@@ -100,6 +100,10 @@ class RawRequestDispatcher {
 			return $controller->send_message( $request );
 		}
 
+		if ( 'v1/webhooks/send' === $path && 'POST' === $method ) {
+			return $controller->receive_external_send_webhook( $request );
+		}
+
 		if ( preg_match( '#^v1/whatsapp/connections/(\d+)/messages$#', $path, $matches ) && 'POST' === $method ) {
 			$request->set_param( 'connection_id', (int) $matches[1] );
 			return $controller->send_connection_message( $request );

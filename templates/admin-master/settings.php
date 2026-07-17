@@ -57,6 +57,19 @@ if (!defined('ABSPATH')) exit;
                 </table>
             </div>
 
+            <div class="card" style="max-width: 800px; margin-top: 20px;">
+                <h2>Webhook externo de envio</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="external_send_webhook_secret">Segredo do endpoint</label></th>
+                        <td>
+                            <input name="external_send_webhook_secret" type="password" id="external_send_webhook_secret" value="" class="large-text" autocomplete="new-password">
+                            <p class="description">Usado no header <code>X-WAS-Webhook-Secret</code> do endpoint <code>/wp-json/was-router/v1/webhooks/send</code>. Deixe vazio para manter o segredo atual.</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
             <p class="submit">
                 <button type="button" id="was-btn-save-master-settings" class="button button-primary">Salvar Configurações Master</button>
             </p>

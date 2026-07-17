@@ -80,6 +80,17 @@ class RouterSettings {
 		return self::get_service_secret();
 	}
 
+	public static function get_external_send_webhook_secret() {
+		if ( defined( 'WAS_EXTERNAL_SEND_WEBHOOK_SECRET' ) && WAS_EXTERNAL_SEND_WEBHOOK_SECRET ) {
+			return (string) WAS_EXTERNAL_SEND_WEBHOOK_SECRET;
+		}
+		if ( getenv( 'WAS_EXTERNAL_SEND_WEBHOOK_SECRET' ) ) {
+			return (string) getenv( 'WAS_EXTERNAL_SEND_WEBHOOK_SECRET' );
+		}
+
+		return (string) get_option( 'was_external_send_webhook_secret', '' );
+	}
+
 	public static function get_default_route_target_url() {
 		if ( defined( 'WAS_ROUTER_ROUTE_TARGET_URL' ) && WAS_ROUTER_ROUTE_TARGET_URL ) {
 			return (string) WAS_ROUTER_ROUTE_TARGET_URL;

@@ -22,6 +22,51 @@ Testes da camada Router:
 php tests/router/run.php
 ```
 
+### Webhook externo para envio
+
+Endpoint:
+
+```text
+POST /wp-json/was-router/v1/webhooks/send
+X-WAS-Webhook-Secret: <segredo-configurado>
+Content-Type: application/json
+```
+
+O segredo pode ser definido pela constante/variável `WAS_EXTERNAL_SEND_WEBHOOK_SECRET` ou no painel Master, em Configurações Globais. O payload aceita o formato Meta-like abaixo; o `metadata.phone_number_id` identifica o número remetente correto:
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "tenant_id": 1,
+  "entry": [
+    {
+      "id": "WABA_ID",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "phone_number_id": "META_PHONE_NUMBER_ID"
+            },
+            "messages": [
+              {
+                "id": "idempotency-123",
+                "to": "5511999999999",
+                "type": "text",
+                "text": { "body": "Mensagem" }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Também são aceitos `phone_number_id`, `to`, `type` e `text` diretamente no corpo, mantendo compatibilidade com o payload oficial de envio da Meta. O endpoint valida o número, tenant/WABA quando informados, usa o token da WABA correta e suporta idempotência pelo `messages[0].id` ou `idempotency_key`.
+
 ## Configuração
 
 1. Instale o projeto no ambiente WordPress.
