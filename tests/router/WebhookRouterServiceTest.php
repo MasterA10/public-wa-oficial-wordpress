@@ -40,6 +40,36 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		}
 	}
 
+	public function test_inbound_media_marks_http_download_errors_instead_of_leaving_pending() {
+		global $wpdb;
+
+		\WAS\Auth\TenantContext::set_tenant_id( 1 );
+		$GLOBALS['was_test_http_response_queue'] = [
+			[
+				'code' => 200,
+				'body' => [ 'url' => 'https://lookaside.fbsbx.com/media/audio-error' ],
+			],
+			[
+				'code' => 502,
+				'body' => 'upstream unavailable',
+			],
+		];
+
+		$result = ( new \WAS\WhatsApp\InboundMediaService() )->handle_inbound_media(
+			1,
+			30,
+			31,
+			'audio-error-id',
+			'audio',
+			'audio/ogg; codecs=opus'
+		);
+		$media = $wpdb->tables[ TableNameResolver::get_table_name( 'media' ) ][0];
+
+		$this->assert_false( $result );
+		$this->assert_same( 'failed', $media['status'] );
+		$this->assert_true( str_contains( $media['error_message'], 'HTTP 502' ) );
+	}
+
 	public function test_routes_multi_number_webhook_to_each_internal_phone_route() {
 		$payload = [
 			'object' => 'whatsapp_business_account',
@@ -730,6 +760,10 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'image-from-facebook', $GLOBALS['was_test_uploads'][0]['bits'] );
 		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $delivered['payload']['media']['public_url'] );
 		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $delivered['payload']['media']['download_url'] );
+		$diagnostics = ( new \WAS\Inbox\MessageRepository() )->get_route_diagnostics( 'wamid-full-flow-image', 1 );
+		$this->assert_count( 1, $diagnostics );
+		$this->assert_true( $diagnostics[0]['public_url_sent'] );
+		$this->assert_same( 'https://wordpress.test/uploads/full-flow-image-id.jpg', $diagnostics[0]['public_url'] );
 		$this->assert_count( 2, $GLOBALS['was_test_http_gets'] );
 	}
 

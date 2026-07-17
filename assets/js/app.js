@@ -1061,6 +1061,86 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { listContainer.innerHTML = `<div class="was-error-state">${err.message}</div>`; }
     }
 
+    function parseMessagePayload(rawPayload) {
+        if (!rawPayload) return null;
+        if (typeof rawPayload === 'object') return rawPayload;
+        try {
+            return JSON.parse(rawPayload);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function mediaPayloadFor(type, payload) {
+        if (!payload || !type) return {};
+        return payload[type]
+            || payload.message?.[type]
+            || payload.payload?.[type]
+            || payload.payload?.messages?.[0]?.[type]
+            || payload.payload?.message_echoes?.[0]?.[type]
+            || {};
+    }
+
+    function appendRouteDiagnostics(contentDiv, diagnostics, isMedia) {
+        const routes = diagnostics?.routes || [];
+        const media = diagnostics?.media || null;
+        if (!isMedia && !routes.length) return;
+
+        const box = document.createElement('details');
+        box.className = 'was-message-diagnostics';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Diagnóstico técnico';
+        box.appendChild(summary);
+
+        const lines = [];
+        if (isMedia && media) {
+            if (media.status === 'failed') {
+                lines.push(`Download: falhou${media.error ? ` — ${media.error}` : ''}.`);
+            } else if (media.downloaded) {
+                lines.push('Download: concluído no WordPress; URL pública disponível para renderização.');
+            } else if (media.url) {
+                lines.push('URL pública: disponível no WordPress para renderização.');
+            } else if (media.status === 'pending') {
+                lines.push('Download: pendente; o arquivo ainda não foi salvo no WordPress.');
+            } else {
+                lines.push('Download: sem registro de URL pública no armazenamento local.');
+            }
+        }
+
+        if (routes.length) {
+            routes.forEach(route => {
+                const routeName = route.route_name || `rota #${route.route_id || '?'}`;
+                if (route.public_url_sent) {
+                    lines.push(`${routeName}: URL pública enviada no payload${route.public_url ? ` — ${route.public_url}` : ''}.`);
+                } else if (route.url_status === 'resolve_failed' || route.url_error) {
+                    lines.push(`${routeName}: não foi possível resolver a URL pública${route.url_error ? ` — ${route.url_error}` : ''}.`);
+                } else if (route.delivery_status === 'dead_letter') {
+                    lines.push(`${routeName}: entrega encerrada com erro${route.last_error ? ` — ${route.last_error}` : ''}.`);
+                } else if (route.delivery_status && route.delivery_status !== 'delivered') {
+                    lines.push(`${routeName}: entrega está ${route.delivery_status}; o payload ainda não foi confirmado.`);
+                } else if (route.routing_status === 'unrouted') {
+                    lines.push('Rota: nenhuma rota ativa correspondeu a este número/evento.');
+                } else {
+                    lines.push(`${routeName}: payload sem URL pública.`);
+                }
+
+                if (route.delivery_status === 'delivered' && route.response_status) {
+                    lines.push(`${routeName}: aplicação externa respondeu HTTP ${route.response_status}.`);
+                }
+            });
+        } else if (isMedia) {
+            lines.push('Rota: não há registro de entrega externa para este webhook.');
+        }
+
+        lines.forEach(line => {
+            const item = document.createElement('div');
+            item.textContent = line;
+            box.appendChild(item);
+        });
+        box.open = lines.some(line => /falhou|não |pendente|sem URL|sem registro|encerrada com erro/i.test(line));
+        contentDiv.appendChild(box);
+    }
+
     async function loadConversation(id, contactName) {
         // Parar polling anterior
         stopChatPolling();
@@ -1081,8 +1161,8 @@ document.addEventListener('DOMContentLoaded', () => {
             historyContainer.innerHTML = '';
             messages.forEach(msg => {
                 const text = msg.text_body || msg.body || '';
-                const payload = (msg.message_type === 'template' && msg.raw_payload) ? JSON.parse(msg.raw_payload) : null;
-                renderMessage(text, msg.direction, msg.message_type, payload, msg.media_url, msg.media_filename, msg.created_at, msg.reply_preview, msg.id, msg.referral);
+                const payload = parseMessagePayload(msg.raw_payload);
+                renderMessage(text, msg.direction, msg.message_type, payload, msg.media_url, msg.media_filename, msg.created_at, msg.reply_preview, msg.id, msg.referral, msg.diagnostics);
                 // Rastrear último ID para polling
                 if (msg.id && parseInt(msg.id) > lastMessageId) lastMessageId = parseInt(msg.id);
                 // Rastrear última inbound para typing indicator
@@ -1164,8 +1244,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             newMsgs.forEach(msg => {
                 const text = msg.text_body || msg.body || '';
-                const payload = (msg.message_type === 'template' && msg.raw_payload) ? JSON.parse(msg.raw_payload) : null;
-                renderMessage(text, msg.direction, msg.message_type, payload, msg.media_url, msg.media_filename, msg.created_at, msg.reply_preview, msg.id, msg.referral);
+                const payload = parseMessagePayload(msg.raw_payload);
+                renderMessage(text, msg.direction, msg.message_type, payload, msg.media_url, msg.media_filename, msg.created_at, msg.reply_preview, msg.id, msg.referral, msg.diagnostics);
                 if (msg.id && parseInt(msg.id) > lastMessageId) lastMessageId = parseInt(msg.id);
                 if (msg.direction === 'inbound') lastInboundMessageId = msg.id;
             });
@@ -1274,7 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderMessage(text, direction, type = 'text', payload = null, mediaUrl = null, mediaFilename = null, timestamp = null, replyPreview = null, messageId = null, referral = null) {
+    function renderMessage(text, direction, type = 'text', payload = null, mediaUrl = null, mediaFilename = null, timestamp = null, replyPreview = null, messageId = null, referral = null, diagnostics = null) {
         const history = document.getElementById('was-messages-history');
         if (!history) return;
 
@@ -1340,6 +1420,43 @@ document.addEventListener('DOMContentLoaded', () => {
             contentDiv.appendChild(replyBox);
         }
         
+        const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
+        const mediaPayload = mediaPayloadFor(type, payload);
+        const effectiveFilename = mediaFilename || mediaPayload.filename || mediaPayload.name || null;
+        const effectiveMediaUrl = mediaUrl || (diagnostics?.media?.url || null);
+
+        const appendCaption = (caption) => {
+            if (!caption) return;
+            const captionDiv = document.createElement('div');
+            captionDiv.style.paddingTop = '4px';
+            captionDiv.textContent = caption;
+            contentDiv.appendChild(captionDiv);
+        };
+
+        const appendMediaPlaceholder = (label, detail = '') => {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'was-media-placeholder';
+            const title = document.createElement('strong');
+            title.textContent = label;
+            placeholder.appendChild(title);
+            if (detail) {
+                const detailEl = document.createElement('span');
+                detailEl.textContent = detail;
+                placeholder.appendChild(detailEl);
+            }
+            contentDiv.appendChild(placeholder);
+            return placeholder;
+        };
+
+        const mediaRenderError = (element, label) => {
+            element.addEventListener('error', () => {
+                const fallback = document.createElement('div');
+                fallback.className = 'was-media-placeholder was-media-error';
+                fallback.textContent = `${label}: o navegador não conseguiu carregar a URL pública.`;
+                element.replaceWith(fallback);
+            }, { once: true });
+        };
+
         if (type === 'template') {
             let header = '';
             let footer = '';
@@ -1369,22 +1486,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${footer ? `<div class="was-tpl-footer">${footer}</div>` : ''}
                 ${buttonsHtml}
             </div>`;
-        } else if (type === 'image' && mediaUrl) {
-            contentDiv.innerHTML += `<img src="${mediaUrl}" alt="Imagem" loading="lazy">
-                                    ${text ? `<div style="padding-top:4px;">${text}</div>` : ''}`;
-        } else if (type === 'audio' && mediaUrl) {
-            contentDiv.innerHTML += `<audio controls src="${mediaUrl}"></audio>`;
-        } else if (type === 'video' && mediaUrl) {
-            contentDiv.innerHTML += `<video controls src="${mediaUrl}"></video>
-                                    ${text ? `<div style="padding-top:4px;">${text}</div>` : ''}`;
-        } else if (type === 'document' && mediaUrl) {
-            contentDiv.innerHTML += `<a href="${mediaUrl}" target="_blank" class="was-doc-card">
-                                        <span class="dashicons dashicons-media-document"></span>
-                                        <div class="was-doc-info">
-                                            <span class="was-doc-name">${mediaFilename || 'Documento'}</span>
-                                        </div>
-                                    </a>
-                                    ${text ? `<div style="padding-top:4px;">${text}</div>` : ''}`;
+        } else if ((type === 'image' || type === 'sticker') && effectiveMediaUrl) {
+            const image = document.createElement('img');
+            image.src = effectiveMediaUrl;
+            image.alt = type === 'sticker' ? 'Figurinha' : 'Imagem';
+            image.loading = 'lazy';
+            mediaRenderError(image, type === 'sticker' ? 'Figurinha' : 'Imagem');
+            contentDiv.appendChild(image);
+            appendCaption(text);
+        } else if (type === 'audio' && effectiveMediaUrl) {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = effectiveMediaUrl;
+            mediaRenderError(audio, 'Áudio');
+            contentDiv.appendChild(audio);
+        } else if (type === 'video' && effectiveMediaUrl) {
+            const video = document.createElement('video');
+            video.controls = true;
+            video.src = effectiveMediaUrl;
+            mediaRenderError(video, 'Vídeo');
+            contentDiv.appendChild(video);
+            appendCaption(text);
+        } else if (type === 'document' && effectiveMediaUrl) {
+            const link = document.createElement('a');
+            link.href = effectiveMediaUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'was-doc-card';
+            link.innerHTML = '<span class="dashicons dashicons-media-document"></span>';
+            const info = document.createElement('div');
+            info.className = 'was-doc-info';
+            const name = document.createElement('span');
+            name.className = 'was-doc-name';
+            name.textContent = effectiveFilename || 'Documento';
+            info.appendChild(name);
+            link.appendChild(info);
+            contentDiv.appendChild(link);
+            appendCaption(text && text !== effectiveFilename ? text : '');
+        } else if (mediaTypes.includes(type)) {
+            const mediaDiagnostic = diagnostics?.media || {};
+            let label = `Mídia (${type}) não disponível`;
+            let detail = 'A renderização não recebeu uma URL pública.';
+            if (mediaDiagnostic.status === 'failed') {
+                label = `Falha no download da mídia (${type})`;
+                detail = mediaDiagnostic.error || 'O arquivo não foi baixado do WhatsApp/Meta.';
+            } else if (mediaDiagnostic.status === 'pending') {
+                label = `Download da mídia (${type}) pendente`;
+                detail = 'O arquivo ainda não foi disponibilizado pelo processamento local.';
+            }
+            appendMediaPlaceholder(label, detail);
+            appendCaption(text && text !== effectiveFilename ? text : '');
         } else if (type === 'button') {
             contentDiv.innerHTML += `<div class="was-interactive-msg">
                                         <div class="was-interactive-label">Resposta rápida</div>
@@ -1399,9 +1550,11 @@ document.addEventListener('DOMContentLoaded', () => {
             contentDiv.innerHTML += `<div class="was-reaction-msg">${text}</div>`;
         } else {
             const bodySpan = document.createElement('span');
-            bodySpan.textContent = text;
+            bodySpan.textContent = text || (type && type !== 'text' ? `Mensagem recebida (tipo: ${type})` : 'Mensagem sem conteúdo');
             contentDiv.appendChild(bodySpan);
         }
+
+        appendRouteDiagnostics(contentDiv, diagnostics, mediaTypes.includes(type));
 
         const timeSpan = document.createElement('span');
         timeSpan.className = 'was-message-time';

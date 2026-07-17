@@ -158,6 +158,7 @@ class InboxApiController {
                         ];
                     }
                 }
+                $this->attach_message_diagnostics($msg);
 
                 return new \WP_REST_Response([
                     'success' => true,
@@ -439,6 +440,7 @@ class InboxApiController {
         // Formatar reply_preview e referral
         $reply_count = 0;
         foreach ($messages as $msg) {
+            $this->attach_message_diagnostics($msg);
             if ($msg->reply_to_message_id) {
                 $reply_count++;
                 $msg->reply_preview = [
@@ -502,6 +504,7 @@ class InboxApiController {
 
         if ($messages) {
             foreach ($messages as $msg) {
+                $this->attach_message_diagnostics($msg);
                 if ($msg->reply_to_message_id) {
                     $msg->reply_preview = [
                         'id'        => $msg->reply_to_message_id,
@@ -535,6 +538,55 @@ class InboxApiController {
             'success' => true,
             'data'    => $messages ?: []
         ], 200);
+    }
+
+    /**
+     * Adds explicit processing evidence to each message consumed by the chat.
+     * A missing media URL is no longer indistinguishable from an empty text.
+     */
+    private function attach_message_diagnostics($message) {
+        if (!$message) {
+            return $message;
+        }
+
+        $media_types = ['image', 'audio', 'video', 'document', 'sticker'];
+        $type = (string) ($message->message_type ?? 'text');
+        $routes = in_array($type, $media_types, true)
+            ? $this->message_repo->get_route_diagnostics(
+                $message->wa_message_id ?? null,
+                TenantContext::get_tenant_id()
+            )
+            : [];
+        $media_url = $message->media_url ?? null;
+        if (!$media_url) {
+            foreach ($routes as $route) {
+                if (!empty($route['public_url'])) {
+                    $media_url = $route['public_url'];
+                    break;
+                }
+            }
+        }
+
+        $message->diagnostics = [
+            'media' => in_array($type, $media_types, true) ? [
+                'type'        => $type,
+                'status'      => $message->media_status ?? null,
+                'mime_type'   => $message->media_mime_type ?? null,
+                'url'         => $media_url,
+                'filename'    => $message->media_filename ?? null,
+                'error'       => $message->media_error ?? null,
+                'downloaded'  => ('downloaded' === ($message->media_status ?? '') && !empty($media_url)),
+            ] : null,
+            'routes' => $routes,
+        ];
+
+        // Keep the canonical field in sync when a route already proved that
+        // the public URL exists but the local media join is unavailable.
+        if (!$message->media_url && $media_url) {
+            $message->media_url = $media_url;
+        }
+
+        return $message;
     }
 
     /**

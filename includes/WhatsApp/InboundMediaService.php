@@ -36,11 +36,20 @@ class InboundMediaService {
 
         // 2. Buscar URL da mídia na Meta
         $token = $this->token_service->get_active_token($tenant_id);
-        if (!$token) return false;
+        if (!$token) {
+            $this->media_repo->update($local_media_id, [
+                'status'        => 'failed',
+                'error_message' => 'Token ativo do WhatsApp não encontrado para baixar a mídia',
+            ]);
+            return false;
+        }
 
         $mediaInfo = $this->api_client->get('media.get', ['media_id' => $media_id], [], $token);
         if (!$mediaInfo['success'] || empty($mediaInfo['url'])) {
-            $this->media_repo->update($local_media_id, ['status' => 'failed', 'error_message' => 'Falha ao buscar URL na Meta']);
+            $this->media_repo->update($local_media_id, [
+                'status'        => 'failed',
+                'error_message' => $mediaInfo['error'] ?? 'Falha ao buscar URL da mídia na Meta',
+            ]);
             return false;
         }
 
@@ -56,7 +65,20 @@ class InboundMediaService {
             return false;
         }
 
+        $http_code = (int) wp_remote_retrieve_response_code($response);
         $binary = wp_remote_retrieve_body($response);
+        if ($http_code < 200 || $http_code >= 300 || '' === $binary) {
+            $this->media_repo->update($local_media_id, [
+                'status'        => 'failed',
+                'error_message' => sprintf(
+                    'Falha HTTP ao baixar mídia da Meta (HTTP %d)%s',
+                    $http_code,
+                    $binary === '' ? ': resposta vazia' : ''
+                ),
+            ]);
+            return false;
+        }
+
         $filename = $media_id . $this->get_extension($mime_type);
         
         // 4. Salvar localmente (WordPress Uploads)

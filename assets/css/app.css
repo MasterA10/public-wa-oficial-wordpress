@@ -917,6 +917,12 @@ body.was-app-shell .wrap h1 {
 .was-doc-info { display: flex; flex-direction: column; overflow: hidden; }
 .was-doc-name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .was-doc-size { font-size: 0.75rem; color: var(--slate-600); }
+.was-media-placeholder { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; margin-bottom: 4px; border: 1px dashed #d97706; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 0.82rem; }
+.was-media-placeholder strong { font-weight: 600; }
+.was-media-error { border-color: #dc2626; background: #fef2f2; color: #991b1b; }
+.was-message-diagnostics { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.08); color: #667781; font-size: 0.72rem; line-height: 1.4; }
+.was-message-diagnostics summary { cursor: pointer; color: #52636b; font-weight: 600; }
+.was-message-diagnostics div { overflow-wrap: anywhere; }
 
 /* Attachment Menu */
 .was-chat-input-actions { display: flex; align-items: center; gap: 4px; position: relative; }
