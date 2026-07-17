@@ -130,7 +130,8 @@ class OutboundEchoMessageService {
                     $dto['meta_media_id'],
                     $type,
                     $dto['mime_type'] ?? '',
-                    'outbound'
+                    'outbound',
+                    $dto['phone_number_id'] ?? null
                 );
             } catch (\Throwable $e) {
                 \WAS\Core\SystemLogger::logException($e, [

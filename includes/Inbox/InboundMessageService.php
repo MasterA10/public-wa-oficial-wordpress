@@ -145,7 +145,9 @@ class InboundMessageService {
                         $message_id,
                         $dto['meta_media_id'],
                         $type,
-                        $dto['mime_type'] ?? ''
+                        $dto['mime_type'] ?? '',
+                        'inbound',
+                        $dto['phone_number_id'] ?? null
                     );
                 } catch (\Throwable $e) {
                     \WAS\Core\SystemLogger::logException($e, ['context' => 'InboundMessageService::handle_media', 'message_id' => $message_id]);

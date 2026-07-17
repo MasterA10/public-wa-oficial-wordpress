@@ -19,18 +19,35 @@ class TokenVault {
         global $wpdb;
         $table = \WAS\Core\TableNameResolver::get_table_name('meta_tokens');
 
-        $query = "SELECT access_token_encrypted FROM $table WHERE tenant_id = %d AND status = 'active'";
-        $params = [$tenant_id];
+        $encrypted = null;
 
         if ($waba_internal_id) {
-            $query .= " AND (whatsapp_account_id = %d OR whatsapp_account_id IS NULL)";
-            $params[] = $waba_internal_id;
+            // Prefer the credential belonging to the exact WABA. A generic
+            // tenant token must never win over a number-specific token.
+            $encrypted = $wpdb->get_var($wpdb->prepare(
+                "SELECT access_token_encrypted FROM $table
+                 WHERE tenant_id = %d AND status = 'active' AND whatsapp_account_id = %d
+                 ORDER BY id DESC LIMIT 1",
+                $tenant_id,
+                $waba_internal_id
+            ));
+
+            if (!$encrypted) {
+                $encrypted = $wpdb->get_var($wpdb->prepare(
+                    "SELECT access_token_encrypted FROM $table
+                     WHERE tenant_id = %d AND status = 'active' AND whatsapp_account_id IS NULL
+                     ORDER BY id DESC LIMIT 1",
+                    $tenant_id
+                ));
+            }
+        } else {
+            $encrypted = $wpdb->get_var($wpdb->prepare(
+                "SELECT access_token_encrypted FROM $table
+                 WHERE tenant_id = %d AND status = 'active'
+                 ORDER BY whatsapp_account_id DESC, id DESC LIMIT 1",
+                $tenant_id
+            ));
         }
-
-        $query .= " ORDER BY whatsapp_account_id DESC LIMIT 1";
-
-        $prepared = $wpdb->prepare($query, ...$params);
-        $encrypted = $wpdb->get_var($prepared);
 
         if (!$encrypted) {
             return null;

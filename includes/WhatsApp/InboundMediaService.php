@@ -5,6 +5,7 @@ use WAS\Meta\MetaApiClient;
 use WAS\Meta\TokenService;
 use WAS\Inbox\MediaRepository;
 use WAS\Auth\TenantContext;
+use WAS\WhatsApp\PhoneNumberService;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -21,7 +22,7 @@ class InboundMediaService {
         $this->media_repo = new MediaRepository();
     }
 
-    public function handle_inbound_media($tenant_id, $conversation_id, $message_id, $media_id, $media_type, $mime_type, $direction = 'inbound') {
+    public function handle_inbound_media($tenant_id, $conversation_id, $message_id, $media_id, $media_type, $mime_type, $direction = 'inbound', $phone_number_id = null) {
         // 1. Registrar mídia localmente
         $local_media_id = $this->media_repo->create([
             'tenant_id'       => $tenant_id,
@@ -34,12 +35,30 @@ class InboundMediaService {
             'status'          => 'pending'
         ]);
 
-        // 2. Buscar URL da mídia na Meta
-        $token = $this->token_service->get_active_token($tenant_id);
+        // 2. Buscar a credencial da conta WABA do número que recebeu a mídia.
+        // Um tenant pode possuir várias WABAs; o token global do tenant pode
+        // não ter permissão para acessar este media_id.
+        $phone = null;
+        if ($phone_number_id) {
+            $phone = (new PhoneNumberService())->get_by_phone_number_id($tenant_id, $phone_number_id);
+            if (!$phone) {
+                $this->media_repo->update($local_media_id, [
+                    'status'        => 'failed',
+                    'error_message' => 'Número WhatsApp do webhook não encontrado neste tenant: ' . $phone_number_id,
+                ]);
+                return false;
+            }
+        }
+
+        $token = $phone && !empty($phone->whatsapp_account_id)
+            ? $this->token_service->get_active_token($tenant_id, (int) $phone->whatsapp_account_id)
+            : $this->token_service->get_active_token($tenant_id);
         if (!$token) {
             $this->media_repo->update($local_media_id, [
                 'status'        => 'failed',
-                'error_message' => 'Token ativo do WhatsApp não encontrado para baixar a mídia',
+                'error_message' => $phone_number_id
+                    ? 'Token ativo da conta WABA do número ' . $phone_number_id . ' não encontrado para baixar a mídia'
+                    : 'Token ativo do WhatsApp não encontrado para baixar a mídia',
             ]);
             return false;
         }

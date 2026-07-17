@@ -70,6 +70,59 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_true( str_contains( $media['error_message'], 'HTTP 502' ) );
 	}
 
+	public function test_inbound_media_uses_token_from_webhook_phone_waba() {
+		global $wpdb;
+
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_accounts' ), [
+			'id'         => 6,
+			'tenant_id'  => 1,
+			'waba_id'    => 'meta-waba-2',
+			'created_at' => current_time( 'mysql', true ),
+		] );
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_phone_numbers' ), [
+			'id'                  => 12,
+			'tenant_id'           => 1,
+			'whatsapp_account_id' => 6,
+			'phone_number_id'     => 'meta-phone-2-waba',
+			'created_at'          => current_time( 'mysql', true ),
+		] );
+		$wpdb->insert( TableNameResolver::get_table_name( 'meta_tokens' ), [
+			'id'                    => 31,
+			'tenant_id'             => 1,
+			'whatsapp_account_id'   => 6,
+			'access_token_encrypted' => \WAS\Meta\TokenVault::encrypt( 'waba-2-token' ),
+			'status'                => 'active',
+			'created_at'            => current_time( 'mysql', true ),
+		] );
+
+		\WAS\Auth\TenantContext::set_tenant_id( 1 );
+		$GLOBALS['was_test_http_response_queue'] = [
+			[
+				'code' => 200,
+				'body' => [ 'url' => 'https://lookaside.fbsbx.com/media/account-specific' ],
+			],
+			[
+				'code' => 200,
+				'body' => 'image-by-account-token',
+			],
+		];
+
+		$result = ( new \WAS\WhatsApp\InboundMediaService() )->handle_inbound_media(
+			1,
+			30,
+			31,
+			'account-specific-media-id',
+			'image',
+			'image/jpeg',
+			'inbound',
+			'meta-phone-2-waba'
+		);
+
+		$this->assert_true( $result );
+		$this->assert_same( 'Bearer waba-2-token', $GLOBALS['was_test_http_gets'][0]['args']['headers']['Authorization'] );
+		$this->assert_same( 'Bearer waba-2-token', $GLOBALS['was_test_http_gets'][1]['args']['headers']['Authorization'] );
+	}
+
 	public function test_routes_multi_number_webhook_to_each_internal_phone_route() {
 		$payload = [
 			'object' => 'whatsapp_business_account',
