@@ -124,6 +124,64 @@ class OutboxServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'delivered', $context['delivery_status'] );
 	}
 
+	public function test_webhook_forwarding_log_has_a_dedicated_event_for_success_and_failure() {
+		$success_route = $this->create_route();
+		$failure_route_id = ( new RouteRepository() )->create_or_update(
+			[
+				'tenant_id'       => 1,
+				'phone_number_id' => 10,
+				'name'            => 'Agenda webhook failure',
+				'target_url'      => 'https://failure.test/webhook',
+				'secret'          => 'failure-secret',
+				'max_retries'     => 2,
+				'is_active'       => true,
+			]
+		);
+		$failure_route = $GLOBALS['wpdb']->get_row( 'SELECT * FROM ' . TableNameResolver::getRoutesTable() . ' WHERE id = ' . (int) $failure_route_id . ' LIMIT 1' );
+		$event_id = $this->insert_message_event();
+		$delivery_ids = ( new OutboxService() )->enqueue_for_event( $event_id, [ $success_route, $failure_route ] );
+		$GLOBALS['was_test_http_response_queue'] = [
+			[
+				'code' => 200,
+				'body' => 'ok',
+			],
+			[
+				'code' => 503,
+				'body' => 'destination unavailable',
+			],
+		];
+
+		$service = new OutboxService();
+		$service->process_delivery( $delivery_ids[0] );
+		$service->process_delivery( $delivery_ids[1] );
+
+		$logs = $GLOBALS['wpdb']->tables[ TableNameResolver::getAuditLogsTable() ] ?? [];
+		$forwarding_logs = [];
+		foreach ( $logs as $log ) {
+			if ( 'webhook_forwarded' !== ( $log['action'] ?? '' ) ) {
+				continue;
+			}
+			$forwarding_logs[] = [
+				'entity_id' => (int) $log['entity_id'],
+				'metadata'  => json_decode( $log['metadata'] ?? '{}', true ),
+			];
+		}
+
+		$this->assert_count( 2, $forwarding_logs );
+		$by_status = [];
+		foreach ( $forwarding_logs as $log ) {
+			$by_status[ $log['metadata']['status'] ] = $log;
+		}
+		$this->assert_array_has_key( 'delivered', $by_status );
+		$this->assert_array_has_key( 'failed', $by_status );
+		$this->assert_same( (int) $success_route->id, $by_status['delivered']['entity_id'] );
+		$this->assert_same( (int) $failure_route->id, $by_status['failed']['entity_id'] );
+		$this->assert_same( 200, (int) $by_status['delivered']['metadata']['response_status'] );
+		$this->assert_same( 503, (int) $by_status['failed']['metadata']['response_status'] );
+		$this->assert_same( 'http_503', $by_status['failed']['metadata']['error'] );
+		$this->assert_same( $failure_route->target_url, $by_status['failed']['metadata']['target_url'] );
+	}
+
 	public function test_admin_cancel_delivery_does_not_call_destination() {
 		$route = $this->create_route();
 		$event_id = $this->insert_message_event();

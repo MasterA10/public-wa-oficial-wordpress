@@ -2,6 +2,7 @@
 
 namespace WAS\Router;
 
+use WAS\Compliance\AuditLogger;
 use WAS\Core\SystemLogger;
 use WAS\Core\TableNameResolver;
 
@@ -127,7 +128,19 @@ class OutboxService {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			return $this->mark_retry_or_dead_letter( $delivery, $route, $attempts, $response->get_error_message() );
+			$result = $this->mark_retry_or_dead_letter( $delivery, $route, $attempts, $response->get_error_message() );
+			$this->log_forwarding_event(
+				$delivery,
+				$route,
+				$event,
+				'failed',
+				[
+					'error'           => $response->get_error_message(),
+					'response_status' => null,
+					'outbox_status'   => $this->failure_outbox_status( $route, $attempts ),
+				]
+			);
+			return $result;
 		}
 
 		$status_code = (int) wp_remote_retrieve_response_code( $response );
@@ -162,10 +175,61 @@ class OutboxService {
 					'delivery_status' => 'delivered',
 				]
 			);
+			$this->log_forwarding_event(
+				$delivery,
+				$route,
+				$event,
+				'delivered',
+				[
+					'response_status' => $status_code,
+					'outbox_status'   => 'delivered',
+				]
+			);
 			return true;
 		}
 
-		return $this->mark_retry_or_dead_letter( $delivery, $route, $attempts, 'http_' . $status_code, $status_code, $body );
+		$result = $this->mark_retry_or_dead_letter( $delivery, $route, $attempts, 'http_' . $status_code, $status_code, $body );
+		$this->log_forwarding_event(
+			$delivery,
+			$route,
+			$event,
+			'failed',
+			[
+				'error'           => 'http_' . $status_code,
+				'response_status' => $status_code,
+				'outbox_status'   => $this->failure_outbox_status( $route, $attempts ),
+			]
+		);
+
+		return $result;
+	}
+
+	private function log_forwarding_event( $delivery, $route, $event, $status, array $context = [] ) {
+		AuditLogger::log(
+			'webhook_forwarded',
+			'webhook_route',
+			(int) $route->id,
+			array_merge(
+				[
+					'status'          => $status,
+					'event_id'        => (int) $event->id,
+					'delivery_id'     => (int) $delivery->id,
+					'route_id'        => (int) $route->id,
+					'route_name'      => (string) $route->name,
+					'target_url'      => (string) $route->target_url,
+					'event_type'      => (string) $event->event_type,
+					'message_type'    => (string) $event->message_type,
+					'wa_message_id'   => (string) $event->wa_message_id,
+					'phone_number_id' => $event->whatsapp_phone_number_row_id ? (int) $event->whatsapp_phone_number_row_id : null,
+					'attempt'         => (int) $delivery->attempts + 1,
+				],
+				$context
+			)
+		);
+	}
+
+	private function failure_outbox_status( $route, $attempts ) {
+		return (int) $attempts >= max( 0, (int) $route->max_retries ) ? 'dead_letter' : 'pending';
 	}
 
 	private function build_payload( $delivery, $event ) {
