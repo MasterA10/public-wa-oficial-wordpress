@@ -19,7 +19,7 @@ class MessageDispatchService {
     /**
      * Método principal para envio (usado pela Inbox).
      */
-    public function send_message(string $to, string $type, string $content, int $tenant_id, ?string $conversation_phone_number_id = null) {
+    public function send_message(string $to, string $type, string $content, int $tenant_id, ?string $conversation_phone_number_id = null, ?int $conversation_id = null) {
         // 0. Verificar Modo Demo Automático
         if (\WAS\Core\Plugin::is_demo_mode()) {
             return [
@@ -46,6 +46,7 @@ class MessageDispatchService {
 
         // 2. Despachar conforme tipo
         if ($type === 'text') {
+            $this->show_typing_before_send($conversation_id);
             $response = $this->send_text($phone->phone_number_id, $to, $content, $token);
         } else {
             // No caso de template, 'content' seria o nome do template no fluxo simplificado da inbox
@@ -61,6 +62,27 @@ class MessageDispatchService {
         }
 
         return ['success' => false, 'error' => $response->error['message'] ?? 'Erro desconhecido na Meta API.'];
+    }
+
+    private function show_typing_before_send(?int $conversation_id) {
+        if (!$conversation_id) {
+            return;
+        }
+
+        try {
+            $result = ( new TypingIndicatorService() )->show_typing($conversation_id);
+            if ( empty($result['success']) && empty($result['skipped']) ) {
+                \WAS\Core\SystemLogger::logWarning('MessageDispatchService: Não foi possível exibir o typing antes do envio.', [
+                    'conversation_id' => $conversation_id,
+                    'error'           => $result['error'] ?? 'unknown',
+                ]);
+            }
+        } catch ( \Throwable $e ) {
+            \WAS\Core\SystemLogger::logException($e, [
+                'context'         => 'MessageDispatchService::show_typing_before_send',
+                'conversation_id' => $conversation_id,
+            ]);
+        }
     }
 
     /**

@@ -166,6 +166,25 @@ O link precisa:
 
 O middleware baixa a mídia, salva uma cópia pública no WordPress, faz o upload para a Meta e envia a mensagem usando o `OutboundMediaService` do chat. A URL pública local não é enviada diretamente à Meta; ela é usada como origem para o download e a Meta recebe o ID do upload realizado pelo número correto.
 
+## Indicador de digitação
+
+Antes do envio de texto ou mídia, o plugin tenta enviar automaticamente o indicador `digitando...` pela mesma WABA e pelo mesmo número da conversa. O payload enviado à Meta segue este formato:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "status": "read",
+  "message_id": "WAMID_DA_ULTIMA_MENSAGEM_RECEBIDA",
+  "typing_indicator": {
+    "type": "text"
+  }
+}
+```
+
+Esse formato é o documentado pela Meta para o endpoint `/{phone-number-id}/messages`. O indicador é encerrado quando a resposta é entregue ou após o limite da plataforma. Ele depende de existir uma mensagem inbound vinculada à conversa; quando não houver uma mensagem de referência, o envio da mensagem principal continua normalmente sem o indicador. Falhas no typing também não bloqueiam a mensagem principal.
+
+O serviço possui cooldown para evitar chamadas repetidas: no máximo um indicador a cada 10 segundos por conversa e respeitando 3 segundos após o último envio.
+
 ## Mídia com ID da Meta
 
 Também é possível enviar uma mídia que já foi carregada na Meta:
@@ -234,4 +253,3 @@ O endpoint aceita `idempotency_key` e também pode usar `messages[0].id` como id
 - [ ] URLs de mídia são públicas e acessíveis pelo servidor WordPress.
 - [ ] A aplicação registra o status HTTP e o JSON de resposta.
 - [ ] Eventos reenviados usam o mesmo `idempotency_key`.
-

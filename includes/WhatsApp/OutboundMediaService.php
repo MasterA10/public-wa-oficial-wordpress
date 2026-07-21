@@ -92,6 +92,10 @@ class OutboundMediaService {
             throw new \Exception('Configuração de envio incompleta.');
         }
 
+        // O typing é enviado antes do upload/envio da mídia para que o cliente
+        // perceba que o atendente está preparando uma resposta.
+        $this->show_typing_before_send((int) $conversation_id);
+
         // Usar o nome real do arquivo (não o caminho temporário do PHP)
         $realFilename = $filename ?: basename($filePath);
 
@@ -236,5 +240,22 @@ class OutboundMediaService {
         ]);
 
         return $sendResponse;
+    }
+
+    private function show_typing_before_send($conversation_id) {
+        try {
+            $result = ( new TypingIndicatorService() )->show_typing((int) $conversation_id);
+            if ( empty($result['success']) && empty($result['skipped']) ) {
+                \WAS\Core\SystemLogger::logWarning('send_media: Não foi possível exibir o typing antes do envio.', [
+                    'conversation_id' => $conversation_id,
+                    'error'           => $result['error'] ?? 'unknown',
+                ]);
+            }
+        } catch ( \Throwable $e ) {
+            \WAS\Core\SystemLogger::logException($e, [
+                'context'         => 'OutboundMediaService::show_typing_before_send',
+                'conversation_id' => $conversation_id,
+            ]);
+        }
     }
 }

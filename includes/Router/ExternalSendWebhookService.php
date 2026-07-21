@@ -50,14 +50,20 @@ class ExternalSendWebhookService {
 			return $inbox_result;
 		}
 
-		$result = ( new WhatsAppService() )->send_message(
-			[
+		$router_payload = [
 				'phone_number_id' => (int) $phone->id,
 				'to_number'       => $normalized['to'],
 				'message_type'    => $normalized['message_type'],
 				'payload'         => $normalized['payload'],
 				'idempotency_key' => $normalized['idempotency_key'],
-			],
+			];
+		$conversation = $this->find_or_create_conversation( $phone, $normalized['to'] );
+		if ( ! is_wp_error( $conversation ) && $conversation ) {
+			$router_payload['conversation_id'] = (int) $conversation->id;
+		}
+
+		$result = ( new WhatsAppService() )->send_message(
+			$router_payload,
 			(object) [ 'type' => 'external_webhook', 'name' => 'external-send-webhook' ]
 		);
 

@@ -55,7 +55,7 @@ final class TypingIndicatorService {
         }
 
         if (!$wa_message_id) {
-            $wa_message_id = $conversation->last_inbound_wa_message_id;
+            $wa_message_id = $conversation->last_inbound_wa_message_id ?? null;
         }
 
         if (!$wa_message_id) {

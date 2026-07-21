@@ -106,6 +106,10 @@ class OutboundMessageService {
             return ['success' => false, 'error' => $error_message];
         }
 
+        // Meta exige que o typing faça referência a uma mensagem inbound.
+        // O indicador é best-effort: uma falha nele não deve impedir o envio.
+        $this->show_typing_before_send((int) $conversation_id);
+
         $payload = [
             'messaging_product' => 'whatsapp',
             'recipient_type'    => 'individual',
@@ -207,5 +211,22 @@ class OutboundMessageService {
         }
 
         return $response;
+    }
+
+    private function show_typing_before_send($conversation_id) {
+        try {
+            $result = ( new \WAS\WhatsApp\TypingIndicatorService() )->show_typing((int) $conversation_id);
+            if ( empty($result['success']) && empty($result['skipped']) ) {
+                \WAS\Core\SystemLogger::logWarning('send_text: Não foi possível exibir o typing antes do envio.', [
+                    'conversation_id' => $conversation_id,
+                    'error'           => $result['error'] ?? 'unknown',
+                ]);
+            }
+        } catch ( \Throwable $e ) {
+            \WAS\Core\SystemLogger::logException($e, [
+                'context'         => 'OutboundMessageService::show_typing_before_send',
+                'conversation_id' => $conversation_id,
+            ]);
+        }
     }
 }

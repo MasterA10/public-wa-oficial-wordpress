@@ -71,6 +71,7 @@ class OutboundMessageServiceTest extends WAS_Router_TestCase {
             'contact_id' => 30,
             'phone_number_id' => 'meta-phone-conversation',
             'status' => 'open',
+            'last_inbound_wa_message_id' => 'wamid.inbound-conversation',
             'customer_service_window_expires_at' => gmdate('Y-m-d H:i:s', time() + 3600),
             'created_at' => current_time('mysql', true),
             'updated_at' => current_time('mysql', true),
@@ -84,10 +85,15 @@ class OutboundMessageServiceTest extends WAS_Router_TestCase {
     public function test_text_uses_the_phone_number_linked_to_the_conversation_not_the_tenant_default() {
         $result = (new OutboundMessageService())->send_text(40, 'Enviada pelo número correto');
 
-        $call = $GLOBALS['was_test_http_posts'][0];
+        $typing_call = $GLOBALS['was_test_http_posts'][0];
+        $call = $GLOBALS['was_test_http_posts'][1];
+        $typing_body = json_decode($typing_call['args']['body'], true);
         $body = json_decode($call['args']['body'], true);
 
         $this->assert_true($result['success']);
+        $this->assert_same('read', $typing_body['status']);
+        $this->assert_same('wamid.inbound-conversation', $typing_body['message_id']);
+        $this->assert_same('text', $typing_body['typing_indicator']['type']);
         $this->assert_true(str_contains($call['url'], '/v25.0/meta-phone-conversation/messages'));
         $this->assert_false(str_contains($call['url'], 'meta-phone-primary'));
         $this->assert_same('Bearer conversation-token', $call['args']['headers']['Authorization']);

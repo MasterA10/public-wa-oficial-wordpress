@@ -72,6 +72,7 @@ class ExternalSendWebhookServiceTest extends WAS_Router_TestCase {
             'contact_id' => 30,
             'phone_number_id' => 'meta-phone-webhook',
             'status' => 'open',
+            'last_inbound_wa_message_id' => 'wamid.inbound-external',
             'customer_service_window_expires_at' => gmdate('Y-m-d H:i:s', time() + 3600),
             'created_at' => current_time('mysql', true),
             'updated_at' => current_time('mysql', true),
@@ -88,13 +89,18 @@ class ExternalSendWebhookServiceTest extends WAS_Router_TestCase {
         $request->set_header('X-WAS-Webhook-Secret', 'external-secret');
 
         $response = (new RouterApiController())->receive_external_send_webhook($request);
-        $call = $GLOBALS['was_test_http_posts'][0];
+        $typing_call = $GLOBALS['was_test_http_posts'][0];
+        $call = $GLOBALS['was_test_http_posts'][1];
+        $typing_body = json_decode($typing_call['args']['body'], true);
         $body = json_decode($call['args']['body'], true);
         $data = $response->get_data();
 
         $this->assert_same(200, $response->get_status());
         $this->assert_true($data['success']);
         $this->assert_same('meta-phone-webhook', $data['meta_phone_number_id']);
+        $this->assert_same('read', $typing_body['status']);
+        $this->assert_same('wamid.inbound-external', $typing_body['message_id']);
+        $this->assert_same('text', $typing_body['typing_indicator']['type']);
         $this->assert_true(str_contains($call['url'], '/v25.0/meta-phone-webhook/messages'));
         $this->assert_same('Bearer webhook-token', $call['args']['headers']['Authorization']);
         $this->assert_same('5511999999999', $body['to']);
@@ -136,13 +142,18 @@ class ExternalSendWebhookServiceTest extends WAS_Router_TestCase {
         $request->set_header('X-WAS-Webhook-Secret', 'external-secret');
 
         $response = (new RouterApiController())->receive_external_send_webhook($request);
-        $call = $GLOBALS['was_test_http_posts'][0];
+        $typing_call = $GLOBALS['was_test_http_posts'][0];
+        $call = $GLOBALS['was_test_http_posts'][1];
+        $typing_body = json_decode($typing_call['args']['body'], true);
         $body = json_decode($call['args']['body'], true);
         $data = $response->get_data();
 
         $this->assert_same(200, $response->get_status());
         $this->assert_true($data['success']);
         $this->assert_same('meta-phone-webhook', $data['meta_phone_number_id']);
+        $this->assert_same('read', $typing_body['status']);
+        $this->assert_same('wamid.inbound-external', $typing_body['message_id']);
+        $this->assert_same('text', $typing_body['typing_indicator']['type']);
         $this->assert_true(str_contains($call['url'], '/v25.0/meta-phone-webhook/messages'));
         $this->assert_same('Bearer webhook-token', $call['args']['headers']['Authorization']);
         $this->assert_same('5511999999999', $body['to']);

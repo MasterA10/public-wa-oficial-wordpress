@@ -84,6 +84,29 @@ class ConversationRepository {
     }
 
     /**
+     * Busca uma conversa aberta sem criar uma nova, para serviços auxiliares
+     * como o indicador de digitação.
+     */
+    public function find_open_conversation_for_contact($contact_id, $phone_number_id = '') {
+        global $wpdb;
+        $tenant_id = TenantContext::get_tenant_id();
+
+        if (!$tenant_id) {
+            return false;
+        }
+
+        $sql = "SELECT * FROM {$this->table_name} WHERE contact_id = %d AND tenant_id = %d AND status = 'open'";
+        $params = [(int) $contact_id, (int) $tenant_id];
+        if ($phone_number_id) {
+            $sql .= ' AND phone_number_id = %s';
+            $params[] = sanitize_text_field($phone_number_id);
+        }
+        $sql .= ' ORDER BY id DESC LIMIT 1';
+
+        return $wpdb->get_row($wpdb->prepare($sql, ...$params));
+    }
+
+    /**
      * Atualiza o timestamp da última mensagem na conversa.
      */
     public function update_last_message_at($conversation_id) {

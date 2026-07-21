@@ -47,6 +47,47 @@ class WhatsAppServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'Ola pelo Router', $body['text']['body'] );
 	}
 
+	public function test_send_message_automatically_shows_typing_for_an_existing_conversation() {
+		global $wpdb;
+
+		$wpdb->insert( TableNameResolver::get_table_name( 'contacts' ), [
+			'id'              => 30,
+			'tenant_id'       => 1,
+			'wa_id'           => '5511999999999',
+			'phone'           => '5511999999999',
+			'normalized_phone' => '5511999999999',
+			'phone_status'    => 'confirmed_by_wa_id',
+			'created_at'      => current_time( 'mysql', true ),
+			'updated_at'      => current_time( 'mysql', true ),
+		] );
+		$wpdb->insert( TableNameResolver::get_table_name( 'conversations' ), [
+			'id'                         => 40,
+			'tenant_id'                  => 1,
+			'contact_id'                 => 30,
+			'phone_number_id'            => 'meta-phone-1',
+			'last_inbound_wa_message_id' => 'wamid.router-inbound',
+			'status'                     => 'open',
+			'created_at'                 => current_time( 'mysql', true ),
+			'updated_at'                 => current_time( 'mysql', true ),
+		] );
+
+		$result = ( new WhatsAppService() )->send_message( [
+			'phone_number_id' => 10,
+			'to_number'       => '5511999999999',
+			'message_type'    => 'text',
+			'payload'         => [ 'text' => [ 'body' => 'Mensagem com typing' ] ],
+		] );
+
+		$typing = json_decode( $GLOBALS['was_test_http_posts'][0]['args']['body'], true );
+		$message = json_decode( $GLOBALS['was_test_http_posts'][1]['args']['body'], true );
+
+		$this->assert_true( $result['success'] );
+		$this->assert_same( 'read', $typing['status'] );
+		$this->assert_same( 'wamid.router-inbound', $typing['message_id'] );
+		$this->assert_same( 'text', $typing['typing_indicator']['type'] );
+		$this->assert_same( 'Mensagem com typing', $message['text']['body'] );
+	}
+
 	public function test_send_interactive_message_preserves_official_payload_without_router_fields() {
 		( new WhatsAppService() )->send_message(
 			[

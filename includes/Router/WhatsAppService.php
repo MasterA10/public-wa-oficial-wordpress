@@ -22,6 +22,7 @@ class WhatsAppService {
 		$message_payload = $payload['payload'] ?? [];
 		$idempotency_key = isset( $payload['idempotency_key'] ) ? sanitize_text_field( $payload['idempotency_key'] ) : null;
 		$operational_message = in_array( $message_type, [ 'read', 'typing_indicator' ], true );
+		$conversation_id = (int) ( $payload['conversation_id'] ?? 0 );
 
 		if ( ! $internal_phone_id || ! $message_type || ! is_array( $message_payload ) || ( ! $operational_message && ! $to_number ) ) {
 			return new WP_Error( 'invalid_send_payload', 'phone_number_id, to_number, message_type e payload sao obrigatorios.', [ 'status' => 400 ] );
@@ -85,6 +86,14 @@ class WhatsAppService {
 				$message_payload
 			);
 
+		if ( ! $operational_message && ! $conversation_id ) {
+			$conversation_id = $this->find_conversation_for_typing( $phone, $to_number );
+		}
+
+		if ( ! $operational_message && $conversation_id ) {
+			$this->show_typing_before_send( $conversation_id );
+		}
+
 		$result = ( new MetaApiClient() )->postJson(
 			'messages.send',
 			[ 'phone_number_id' => $phone->phone_number_id ],
@@ -118,6 +127,45 @@ class WhatsAppService {
 			'wa_message_id'   => $meta_message_id,
 			'meta_response'   => $result,
 		];
+	}
+
+	private function show_typing_before_send( $conversation_id ) {
+		try {
+			$result = ( new \WAS\WhatsApp\TypingIndicatorService() )->show_typing( (int) $conversation_id );
+			if ( empty( $result['success'] ) && empty( $result['skipped'] ) ) {
+				\WAS\Core\SystemLogger::logWarning( 'WhatsAppService: Não foi possível exibir o typing antes do envio.', [
+					'conversation_id' => $conversation_id,
+					'error'           => $result['error'] ?? 'unknown',
+				] );
+			}
+		} catch ( \Throwable $e ) {
+			\WAS\Core\SystemLogger::logException( $e, [
+				'context'         => 'WhatsAppService::show_typing_before_send',
+				'conversation_id' => $conversation_id,
+			] );
+		}
+	}
+
+	private function find_conversation_for_typing( $phone, $to_number ) {
+		if ( ! $phone || ! $to_number ) {
+			return 0;
+		}
+
+		\WAS\Auth\TenantContext::set_tenant_id( (int) $phone->tenant_id );
+		$contact = ( new \WAS\Inbox\ContactRepository() )->find_by_wa_id(
+			(int) $phone->tenant_id,
+			(string) $to_number
+		);
+		if ( ! $contact ) {
+			return 0;
+		}
+
+		$conversation = ( new \WAS\Inbox\ConversationRepository() )->find_open_conversation_for_contact(
+			(int) $contact->id,
+			(string) $phone->phone_number_id
+		);
+
+		return $conversation ? (int) $conversation->id : 0;
 	}
 
 	public function get_phone_status( $internal_phone_id, $sync = true ) {
