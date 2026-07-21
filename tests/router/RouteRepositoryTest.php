@@ -186,4 +186,54 @@ class RouteRepositoryTest extends WAS_Router_TestCase {
 		$this->assert_true( is_wp_error( $result ) );
 		$this->assert_same( 'active_route_already_exists_for_phone', $result->get_error_code() );
 	}
+
+	public function test_delete_route_archives_it_and_removes_it_from_active_delivery() {
+		$GLOBALS['was_test_options']['was_router_service_secret'] = 'service-secret';
+		$repository = new RouteRepository();
+		$route_id = $repository->create_or_update( [
+			'tenant_id'       => 1,
+			'phone_number_id' => 10,
+			'name'            => 'Rota para apagar',
+			'target_url'      => 'https://delete-route.test/webhook',
+			'secret'          => 'delete-secret',
+			'is_active'       => true,
+		] );
+		$controller = new RouterApiController();
+		$request = new WP_REST_Request( 'DELETE', '/admin-api/routes/' . $route_id );
+		$request->set_param( 'route_id', $route_id );
+		$request->set_header( 'Authorization', 'Bearer service-secret' );
+
+		$response = $controller->delete_route( $request );
+		$data = $response->get_data();
+		$archived = $repository->find( $route_id );
+
+		$this->assert_same( 200, $response->get_status() );
+		$this->assert_same( $route_id, (int) $data['id'] );
+		$this->assert_same( 0, (int) $data['is_active'] );
+		$this->assert_same( 'disabled', $data['status'] );
+		$this->assert_same( 0, (int) $archived->is_active );
+		$this->assert_same( 'disabled', $archived->status );
+		$this->assert_count( 0, $repository->active_for_phone( 10, 1 ) );
+	}
+
+	public function test_master_front_delete_route_endpoint_archives_the_route() {
+		$repository = new RouteRepository();
+		$route_id = $repository->create_or_update( [
+			'tenant_id'       => 1,
+			'phone_number_id' => 10,
+			'name'            => 'Rota do painel',
+			'target_url'      => 'https://master-delete-route.test/webhook',
+			'is_active'       => true,
+		] );
+		$request = new WP_REST_Request( 'DELETE', '/admin/routes/' . $route_id );
+		$request->set_param( 'id', $route_id );
+
+		$response = ( new \WAS\REST\AdminMasterApiController() )->delete_route( $request );
+		$data = $response->get_data();
+
+		$this->assert_same( 200, $response->get_status() );
+		$this->assert_same( $route_id, (int) $data['id'] );
+		$this->assert_false( $data['is_active'] );
+		$this->assert_same( 'disabled', $data['status'] );
+	}
 }

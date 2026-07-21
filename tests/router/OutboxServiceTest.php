@@ -1,6 +1,7 @@
 <?php
 
 use WAS\Core\TableNameResolver;
+use WAS\Auth\TenantContext;
 use WAS\Router\AdminRouterService;
 use WAS\Router\OutboxService;
 use WAS\Router\RouteRepository;
@@ -9,6 +10,7 @@ class OutboxServiceTest extends WAS_Router_TestCase {
 
 	protected function set_up() {
 		global $wpdb;
+		TenantContext::set_tenant_id( 1 );
 		$wpdb->insert( TableNameResolver::get_table_name( 'tenants' ), [ 'id' => 1, 'name' => 'Agenda', 'slug' => 'agenda', 'status' => 'active', 'created_at' => current_time( 'mysql', true ) ] );
 		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_accounts' ), [ 'id' => 5, 'tenant_id' => 1, 'meta_app_id' => 1, 'waba_id' => 'meta-waba-1', 'name' => 'WABA', 'status' => 'active', 'created_at' => current_time( 'mysql', true ) ] );
 		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_phone_numbers' ), [ 'id' => 10, 'tenant_id' => 1, 'whatsapp_account_id' => 5, 'phone_number_id' => 'meta-phone-1', 'display_phone_number' => '+55 31 90000-0001', 'status' => 'active', 'created_at' => current_time( 'mysql', true ) ] );
@@ -84,6 +86,42 @@ class OutboxServiceTest extends WAS_Router_TestCase {
 		$this->assert_not_null( $delivery->delivered_at );
 		$this->assert_count( 1, $GLOBALS['was_test_http_posts'] );
 		$this->assert_same( 'route-secret', $GLOBALS['was_test_http_posts'][0]['args']['headers']['x-waba-router-secret'] );
+	}
+
+	public function test_successful_delivery_logs_that_webhook_was_delivered_to_route() {
+		$route = $this->create_route();
+		$event_id = $this->insert_message_event();
+		$delivery_ids = ( new OutboxService() )->enqueue_for_event( $event_id, [ $route ] );
+		$GLOBALS['was_test_http_response'] = [
+			'code' => 202,
+			'body' => 'accepted',
+		];
+
+		$result = ( new OutboxService() )->process_delivery( $delivery_ids[0] );
+		$logs = $GLOBALS['wpdb']->tables[ TableNameResolver::getAuditLogsTable() ] ?? [];
+		$matching_logs = [];
+
+		foreach ( $logs as $log ) {
+			if ( 'SYSTEM_INFO' !== ( $log['action'] ?? '' ) ) {
+				continue;
+			}
+
+			$metadata = json_decode( $log['metadata'] ?? '{}', true );
+			if ( 'Webhook entregue para a rota.' === ( $metadata['error_message'] ?? '' ) ) {
+				$matching_logs[] = $metadata;
+			}
+		}
+
+		$this->assert_true( $result );
+		$this->assert_count( 1, $matching_logs );
+		$context = $matching_logs[0]['context'];
+		$this->assert_same( (int) $event_id, (int) $context['event_id'] );
+		$this->assert_same( (int) $delivery_ids[0], (int) $context['delivery_id'] );
+		$this->assert_same( (int) $route->id, (int) $context['route_id'] );
+		$this->assert_same( $route->name, $context['route_name'] );
+		$this->assert_same( $route->target_url, $context['target_url'] );
+		$this->assert_same( 202, (int) $context['response_status'] );
+		$this->assert_same( 'delivered', $context['delivery_status'] );
 	}
 
 	public function test_admin_cancel_delivery_does_not_call_destination() {

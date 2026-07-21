@@ -2,6 +2,7 @@
 
 namespace WAS\Router;
 
+use WAS\Core\SystemLogger;
 use WAS\Core\TableNameResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -143,6 +144,23 @@ class OutboxService {
 					'last_error'      => null,
 				],
 				[ 'id' => (int) $delivery->id ]
+			);
+
+			SystemLogger::logInfo(
+				'Webhook entregue para a rota.',
+				[
+					'event_id'        => (int) $event->id,
+					'delivery_id'     => (int) $delivery->id,
+					'route_id'        => (int) $route->id,
+					'route_name'      => (string) $route->name,
+					'target_url'      => (string) $route->target_url,
+					'event_type'      => (string) $event->event_type,
+					'message_type'    => (string) $event->message_type,
+					'wa_message_id'   => (string) $event->wa_message_id,
+					'phone_number_id' => $event->whatsapp_phone_number_row_id ? (int) $event->whatsapp_phone_number_row_id : null,
+					'response_status' => $status_code,
+					'delivery_status' => 'delivered',
+				]
 			);
 			return true;
 		}

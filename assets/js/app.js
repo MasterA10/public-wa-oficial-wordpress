@@ -437,11 +437,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         <code>${escape(route.target_url)}</code><br>
                         <small>${route.is_active ? 'Ativa' : 'Desativada'} · ${route.max_retries} tentativas · timeout ${route.timeout_ms}ms</small>
                     </div>
-                    <button type="button" class="button was-delete-route" data-id="${route.id}">Desativar</button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                        ${route.is_active ? `<button type="button" class="button was-deactivate-route" data-id="${route.id}">Desativar</button>` : ''}
+                        <button type="button" class="button button-link-delete was-delete-route" data-id="${route.id}">Apagar</button>
+                    </div>
                 </div>`).join('') : '<p>Nenhuma rota configurada para este número.</p>';
 
+            routesList.querySelectorAll('.was-deactivate-route').forEach(button => button.addEventListener('click', async () => {
+                if (!confirm('Desativar esta rota? Ela deixará de receber novos webhooks, mas permanecerá cadastrada.')) return;
+                try {
+                    await wasApiFetch(`/admin/routes/${button.dataset.id}`, 'PATCH', { is_active: false, status: 'disabled' });
+                    await loadPhoneDetails(selectedPhoneId);
+                } catch (error) { alert(error.message); }
+            }));
+
             routesList.querySelectorAll('.was-delete-route').forEach(button => button.addEventListener('click', async () => {
-                if (!confirm('Desativar esta rota?')) return;
+                if (!confirm('Apagar esta rota? Ela será removida das rotas ativas e não receberá novos webhooks.')) return;
                 try {
                     await wasApiFetch(`/admin/routes/${button.dataset.id}`, 'DELETE');
                     await loadPhoneDetails(selectedPhoneId);

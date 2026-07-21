@@ -166,6 +166,59 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'route-secret', $GLOBALS['was_test_http_posts'][0]['args']['headers']['x-waba-router-secret'] );
 	}
 
+	public function test_webhook_is_delivered_to_all_active_routes_for_the_same_phone() {
+		$second_route_id = ( new RouteRepository() )->create_or_update( [
+			'tenant_id'       => 1,
+			'phone_number_id' => 10,
+			'name'            => 'Phone 1 secondary route',
+			'target_url'      => 'https://secondary.test/webhook',
+			'secret'          => 'secondary-secret',
+			'is_active'       => true,
+		] );
+
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'messaging_product' => 'whatsapp',
+								'metadata'          => [ 'phone_number_id' => 'meta-phone-1' ],
+								'messages'          => [
+									[ 'id' => 'wamid-same-phone-routes', 'from' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Oi' ] ],
+								],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+		$routes = ( new RouteRepository() )->active_for_phone( 10, 1 );
+		$bodies = array_map(
+			fn( $call ) => json_decode( $call['args']['body'], true ),
+			$GLOBALS['was_test_http_posts']
+		);
+		$route_ids = array_values( array_map( fn( $body ) => (int) $body['route_id'], $bodies ) );
+		$expected_route_ids = [ 1, (int) $second_route_id ];
+		sort( $route_ids );
+		sort( $expected_route_ids );
+
+		$this->assert_true( $result['success'] );
+		$this->assert_count( 2, $routes );
+		$this->assert_count( 2, $result['events'][0]['deliveries'] );
+		$this->assert_count( 2, $GLOBALS['was_test_http_posts'] );
+		$this->assert_same( $expected_route_ids, $route_ids );
+		$this->assert_same( 'https://agenda.test/webhook', $GLOBALS['was_test_http_posts'][0]['url'] );
+		$this->assert_same( 'https://secondary.test/webhook', $GLOBALS['was_test_http_posts'][1]['url'] );
+		$this->assert_same( 'route-secret', $GLOBALS['was_test_http_posts'][0]['args']['headers']['x-waba-router-secret'] );
+		$this->assert_same( 'secondary-secret', $GLOBALS['was_test_http_posts'][1]['args']['headers']['x-waba-router-secret'] );
+	}
+
 	public function test_message_received_delivery_payload_matches_debounce_waba_router_normalizer_contract() {
 		$payload = [
 			'object' => 'whatsapp_business_account',
