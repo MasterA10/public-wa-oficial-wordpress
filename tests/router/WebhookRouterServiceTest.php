@@ -600,6 +600,60 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( '553171183457', $delivered['payload']['wa_to'] );
 	}
 
+	public function test_forwarding_logs_cover_received_sent_and_echo_messages() {
+		\WAS\Auth\TenantContext::set_tenant_id( 1 );
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'messaging_product' => 'whatsapp',
+								'metadata'          => [ 'phone_number_id' => 'meta-phone-1' ],
+								'contacts'           => [ [ 'profile' => [ 'name' => 'Ana' ], 'wa_id' => '5531999000001' ] ],
+								'messages'          => [
+									[ 'id' => 'wamid-received-for-log', 'from' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Mensagem recebida' ] ],
+								],
+								'statuses'          => [
+									[ 'id' => 'wamid-sent-for-log', 'status' => 'sent', 'recipient_id' => '5531999000001', 'timestamp' => '1710000001' ],
+								],
+								'message_echoes'    => [
+									[ 'id' => 'wamid-echo-for-log', 'from' => '553171183457', 'to' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Mensagem ecoada' ] ],
+								],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+		$logs = $GLOBALS['wpdb']->tables[ TableNameResolver::getAuditLogsTable() ] ?? [];
+		$forwarding_logs = [];
+		foreach ( $logs as $log ) {
+			if ( 'webhook_forwarded' !== ( $log['action'] ?? '' ) ) {
+				continue;
+			}
+			$metadata = json_decode( $log['metadata'] ?? '{}', true );
+			$forwarding_logs[ $metadata['event_type'] ?? '' ] = $metadata;
+		}
+
+		$this->assert_true( $result['success'] );
+		$this->assert_count( 3, $result['events'] );
+		$this->assert_count( 3, $GLOBALS['was_test_http_posts'] );
+		$this->assert_count( 3, $forwarding_logs );
+		$this->assert_array_has_key( 'message_received', $forwarding_logs );
+		$this->assert_array_has_key( 'message_status', $forwarding_logs );
+		$this->assert_array_has_key( 'message_echo', $forwarding_logs );
+		$this->assert_same( 'delivered', $forwarding_logs['message_received']['status'] );
+		$this->assert_same( 'delivered', $forwarding_logs['message_status']['status'] );
+		$this->assert_same( 'delivered', $forwarding_logs['message_echo']['status'] );
+		$this->assert_same( 'sent', $forwarding_logs['message_status']['message_type'] );
+	}
+
 	public function test_meta_template_status_webhook_routes_by_waba_and_template_without_phone_metadata() {
 		global $wpdb;
 		$wpdb->insert(

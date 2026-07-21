@@ -253,3 +253,100 @@ O endpoint aceita `idempotency_key` e também pode usar `messages[0].id` como id
 - [ ] URLs de mídia são públicas e acessíveis pelo servidor WordPress.
 - [ ] A aplicação registra o status HTTP e o JSON de resposta.
 - [ ] Eventos reenviados usam o mesmo `idempotency_key`.
+
+Payload anonimizado que é enviado:
+
+{
+    "event_id": 4820,
+    "delivery_id": 581,
+    "event_type": "message_received",
+    "message_type": "text",
+    "wa_message_id": "wamid.HBgNNTUxMzk5MTkxMzc3MBUCABIYFENFQjM0NUIxMkY2NThGNUIzQTA2AA==",
+    "wa_from": "5513999999999",
+    "phone_number_id": 2,
+    "route_id": 8,
+    "payload": {
+        "field": "messages",
+        "metadata": {
+            "display_phone_number": "553199999999",
+            "phone_number_id": "123123123123123123"
+        },
+        "contact": {
+            "wa_id": "5513999999999",
+            "user_id": "BR.123123123123123123"
+        },
+        "message": {
+            "from": "5513999999999",
+            "from_user_id": "BR.123123123123123123",
+            "id": "wamid.HBgNNTUxMzk5MTkxMzc3MBUCABIYFENFQjM0NUIxMkY2NThGNUIzQTA2AA==",
+            "timestamp": "123123123123",
+            "text": {
+                "body": "td bem?"
+            },
+            "type": "text"
+        },
+        "payload": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+                "display_phone_number": "553199999999",
+                "phone_number_id": "123123123123123123"
+            },
+            "contacts": [
+                {
+                    "wa_id": "5513999999999",
+                    "user_id": "BR.123123123123123123"
+                }
+            ],
+            "messages": [
+                {
+                    "from": "5513999999999",
+                    "from_user_id": "BR.123123123123123123",
+                    "id": "wamid.HBgNNTUxMzk5MTkxMzc3MBUCABIYFENFQjM0NUIxMkY2NThGNUIzQTA2AA==",
+                    "timestamp": "123123123123",
+                    "text": {
+                        "body": "td bem?"
+                    },
+                    "type": "text"
+                }
+            ]
+        }
+    },
+    "raw_payload": {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "123123123123",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "553199999999",
+                                "phone_number_id": "123123123123123123"
+                            },
+                            "contacts": [
+                                {
+                                    "wa_id": "5513999999999",
+                                    "user_id": "BR.123123123123123123"
+                                }
+                            ],
+                            "messages": [
+                                {
+                                    "from": "5513999999999",
+                                    "from_user_id": "BR.123123123123123123",
+                                    "id": "wamid.HBgNNTUxMzk5MTkxMzc3MBUCABIYFENFQjM0NUIxMkY2NThGNUIzQTA2AA==",
+                                    "timestamp": "123123123123",
+                                    "text": {
+                                        "body": "td bem?"
+                                    },
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "field": "messages"
+                    }
+                ]
+            }
+        ]
+    }
+}
