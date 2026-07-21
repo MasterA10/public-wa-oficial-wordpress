@@ -366,8 +366,14 @@ class AdminMasterApiController {
 	}
 
 	public function delete_route( $request ) {
-		$route = ( new \WAS\Router\RouteRepository() )->archive( (int) $request->get_param( 'id' ) );
-		return is_wp_error( $route ) ? $route : new WP_REST_Response( $this->public_route( $route ), 200 );
+		$result = ( new \WAS\Router\RouteRepository() )->delete( (int) $request->get_param( 'id' ) );
+		return is_wp_error( $result ) ? $result : new WP_REST_Response(
+			[
+				'id'      => (int) $result['id'],
+				'deleted' => (bool) $result['deleted'],
+			],
+			200
+		);
 	}
 
 	private function find_master_phone( $id ) {

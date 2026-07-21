@@ -219,6 +219,55 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 'secondary-secret', $GLOBALS['was_test_http_posts'][1]['args']['headers']['x-waba-router-secret'] );
 	}
 
+	public function test_webhook_is_delivered_only_to_the_active_route_when_another_is_disabled() {
+		$routes = new RouteRepository();
+		$disabled_route_id = $routes->create_or_update( [
+			'tenant_id'       => 1,
+			'phone_number_id' => 10,
+			'name'            => 'Phone 1 disabled route',
+			'target_url'      => 'https://disabled.test/webhook',
+			'secret'          => 'disabled-secret',
+			'is_active'       => true,
+		] );
+		$routes->update_status( $disabled_route_id, false, 'disabled' );
+
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'messaging_product' => 'whatsapp',
+								'metadata'          => [ 'phone_number_id' => 'meta-phone-1' ],
+								'messages'          => [
+									[ 'id' => 'wamid-active-only', 'from' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Somente rota ativa' ] ],
+								],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+		$deliveries = $GLOBALS['wpdb']->tables[ TableNameResolver::getOutboxDeliveriesTable() ] ?? [];
+		$active_routes = $routes->active_for_phone( 10, 1 );
+
+		$this->assert_true( $result['success'] );
+		$this->assert_count( 1, $active_routes );
+		$this->assert_count( 1, $result['events'][0]['deliveries'] );
+		$this->assert_count( 1, $deliveries );
+		$this->assert_same( 1, (int) $deliveries[0]['route_id'] );
+		$this->assert_same( 'delivered', $deliveries[0]['status'] );
+		$this->assert_count( 1, $GLOBALS['was_test_http_posts'] );
+		$this->assert_same( 'https://agenda.test/webhook', $GLOBALS['was_test_http_posts'][0]['url'] );
+		$this->assert_same( 'route-secret', $GLOBALS['was_test_http_posts'][0]['args']['headers']['x-waba-router-secret'] );
+		$this->assert_same( 1, (int) json_decode( $GLOBALS['was_test_http_posts'][0]['args']['body'], true )['route_id'] );
+	}
+
 	public function test_message_received_delivery_payload_matches_debounce_waba_router_normalizer_contract() {
 		$payload = [
 			'object' => 'whatsapp_business_account',

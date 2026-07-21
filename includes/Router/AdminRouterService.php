@@ -334,7 +334,7 @@ class AdminRouterService {
 	}
 
 	public function delete_route( $route_id ) {
-		return ( new RouteRepository() )->archive( (int) $route_id );
+		return ( new RouteRepository() )->delete( (int) $route_id );
 	}
 
 	public function list_deliveries( array $params = [] ) {

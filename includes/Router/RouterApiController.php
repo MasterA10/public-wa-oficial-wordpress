@@ -589,8 +589,8 @@ class RouterApiController {
 			return $this->respond( $actor );
 		}
 
-		$route = ( new AdminRouterService() )->delete_route( (int) $request->get_param( 'route_id' ) );
-		return $this->respond( is_wp_error( $route ) ? $route : $this->public_route( $route ) );
+		$result = ( new AdminRouterService() )->delete_route( (int) $request->get_param( 'route_id' ) );
+		return $this->respond( $result );
 	}
 
 	public function list_routes( WP_REST_Request $request ) {

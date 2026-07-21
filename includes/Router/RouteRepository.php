@@ -156,6 +156,30 @@ class RouteRepository {
 		return $this->update_status( (int) $id, false, 'disabled' );
 	}
 
+	public function delete( $id ) {
+		global $wpdb;
+
+		$id = (int) $id;
+		$route = $this->find( $id );
+		if ( ! $route ) {
+			return new WP_Error( 'route_not_found', 'Rota nao encontrada.', [ 'status' => 404 ] );
+		}
+
+		// A tabela de entregas não possui FK para permitir a remoção automática.
+		// Remova primeiro as entregas para não deixar referências órfãs à rota.
+		$wpdb->delete( TableNameResolver::getOutboxDeliveriesTable(), [ 'route_id' => $id ] );
+		$deleted = $wpdb->delete( TableNameResolver::getRoutesTable(), [ 'id' => $id ] );
+
+		if ( ! $deleted ) {
+			return new WP_Error( 'route_delete_failed', 'Nao foi possivel apagar a rota.', [ 'status' => 500 ] );
+		}
+
+		return [
+			'id'      => $id,
+			'deleted' => true,
+		];
+	}
+
 	public function duplicate( $id ) {
 		global $wpdb;
 

@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
 
             routesList.querySelectorAll('.was-delete-route').forEach(button => button.addEventListener('click', async () => {
-                if (!confirm('Apagar esta rota? Ela será removida das rotas ativas e não receberá novos webhooks.')) return;
+                if (!confirm('Apagar esta rota definitivamente? Ela será removida do painel e do banco de dados, junto com as entregas pendentes relacionadas.')) return;
                 try {
                     await wasApiFetch(`/admin/routes/${button.dataset.id}`, 'DELETE');
                     await loadPhoneDetails(selectedPhoneId);
