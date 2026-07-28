@@ -63,6 +63,9 @@ class PhoneNumberRepository {
         global $wpdb;
 
         $data['tenant_id'] = $data['tenant_id'] ?? TenantContext::getTenantId();
+		if ( ! empty( $data['is_default'] ) ) {
+			$wpdb->update( $this->table_name, [ 'is_default' => 0 ], [ 'tenant_id' => $data['tenant_id'] ] );
+		}
         $existing = $this->findByPhoneNumberId($data['phone_number_id']);
 
         $prepared = [

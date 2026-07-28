@@ -172,6 +172,32 @@ class RouterAuthTest extends WAS_Router_TestCase {
 		$this->assert_same( 'router_unauthorized', $data['error'] );
 	}
 
+	public function test_missing_bearer_header_returns_401() {
+		$request = new WP_REST_Request( 'GET', '/auth/me' );
+
+		$response = ( new RouterApiController() )->me( $request );
+		$data = $response->get_data();
+
+		$this->assert_same( 401, $response->get_status() );
+		$this->assert_same( 'router_unauthorized', $data['error'] );
+		$this->assert_same( 'Bearer token ausente.', $data['message'] );
+	}
+
+	public function test_inactive_api_token_returns_401_and_is_not_used() {
+		global $wpdb;
+		$issued = ( new ApiTokenService() )->issue_for_user( 1, 'inactive-token' );
+		$tokens_table = TableNameResolver::getRouterApiTokensTable();
+		$wpdb->update( $tokens_table, [ 'status' => 'revoked' ], [ 'token_hash' => hash( 'sha256', $issued['access_token'] ) ] );
+
+		$request = new WP_REST_Request( 'GET', '/auth/me' );
+		$request->set_header( 'Authorization', 'Bearer ' . $issued['access_token'] );
+		$response = ( new RouterApiController() )->me( $request );
+		$data = $response->get_data();
+
+		$this->assert_same( 401, $response->get_status() );
+		$this->assert_same( 'router_unauthorized', $data['error'] );
+	}
+
 	private function agenda_registration_payload() {
 		return [
 			'tenant_id'             => 2,

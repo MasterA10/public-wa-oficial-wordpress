@@ -69,5 +69,15 @@ abstract class WAS_Router_TestCase {
 			throw new RuntimeException( $message ?: "Expected array key $key." );
 		}
 	}
-}
 
+	protected function assert_throws( callable $callback, $message = '' ) {
+		$this->assertions++;
+		try {
+			$callback();
+		} catch ( Throwable $exception ) {
+			return $exception;
+		}
+
+		throw new RuntimeException( $message ?: 'Expected callable to throw an exception.' );
+	}
+}

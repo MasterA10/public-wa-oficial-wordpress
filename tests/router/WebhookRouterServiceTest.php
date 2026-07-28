@@ -268,6 +268,49 @@ class WebhookRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_same( 1, (int) json_decode( $GLOBALS['was_test_http_posts'][0]['args']['body'], true )['route_id'] );
 	}
 
+	public function test_route_event_filters_limit_delivery_without_affecting_unfiltered_route() {
+		$filtered_route_id = ( new RouteRepository() )->create_or_update( [
+			'tenant_id'       => 1,
+			'phone_number_id' => 10,
+			'name'            => 'Echo only route',
+			'target_url'      => 'https://echo-only.test/webhook',
+			'secret'          => 'echo-only-secret',
+			'event_filters'   => [ 'event_types' => [ 'message_echo' ] ],
+			'is_active'       => true,
+		] );
+
+		$payload = [
+			'object' => 'whatsapp_business_account',
+			'entry'  => [
+				[
+					'id'      => 'meta-waba-1',
+					'changes' => [
+						[
+							'field' => 'messages',
+							'value' => [
+								'messaging_product' => 'whatsapp',
+								'metadata'          => [ 'phone_number_id' => 'meta-phone-1' ],
+								'messages'          => [ [ 'id' => 'wamid-filter-received', 'from' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Recebida' ] ] ],
+								'message_echoes'    => [ [ 'id' => 'wamid-filter-echo', 'from' => '553171183457', 'to' => '5531999000001', 'type' => 'text', 'text' => [ 'body' => 'Echo' ] ] ],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$result = ( new WebhookRouterService() )->process_meta_payload( $payload, wp_json_encode( $payload ), true );
+		$bodies = array_map( fn( $call ) => json_decode( $call['args']['body'], true ), $GLOBALS['was_test_http_posts'] );
+		$filtered_deliveries = array_values( array_filter( $bodies, fn( $body ) => (int) $body['route_id'] === (int) $filtered_route_id ) );
+
+		$this->assert_true( $result['success'] );
+		$this->assert_count( 2, $result['events'] );
+		$this->assert_count( 3, $GLOBALS['was_test_http_posts'] );
+		$this->assert_count( 1, $filtered_deliveries );
+		$this->assert_same( 'message_echo', $filtered_deliveries[0]['event_type'] );
+		$this->assert_same( 'https://echo-only.test/webhook', array_values( array_filter( $GLOBALS['was_test_http_posts'], fn( $call ) => $call['url'] === 'https://echo-only.test/webhook' ) )[0]['url'] );
+	}
+
 	public function test_message_received_delivery_payload_matches_debounce_waba_router_normalizer_contract() {
 		$payload = [
 			'object' => 'whatsapp_business_account',

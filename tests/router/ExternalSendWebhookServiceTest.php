@@ -127,6 +127,52 @@ class ExternalSendWebhookServiceTest extends WAS_Router_TestCase {
         $this->assert_count(0, $GLOBALS['was_test_http_posts']);
     }
 
+    public function test_external_webhook_rejects_unknown_phone_tenant_and_waba_before_sending() {
+		$cases = [
+			[
+				'payload' => array_replace_recursive( $this->payload(), [ 'phone_number_id' => 'unknown-phone' ] ),
+				'code'    => 404,
+				'error'   => 'phone_number_not_found',
+			],
+			[
+				'payload' => array_replace_recursive( $this->payload(), [ 'tenant_id' => 999 ] ),
+				'code'    => 403,
+				'error'   => 'phone_tenant_mismatch',
+			],
+			[
+				'payload' => array_replace_recursive( $this->payload(), [ 'waba_id' => 'wrong-waba' ] ),
+				'code'    => 403,
+				'error'   => 'phone_waba_mismatch',
+			],
+		];
+
+		foreach ( $cases as $case ) {
+			$request = new WP_REST_Request( 'POST', '/v1/webhooks/send' );
+			$request->set_body( wp_json_encode( $case['payload'] ) );
+			$request->set_header( 'X-WAS-Webhook-Secret', 'external-secret' );
+
+			$response = ( new RouterApiController() )->receive_external_send_webhook( $request );
+			$data = $response->get_data();
+
+			$this->assert_same( $case['code'], $response->get_status() );
+			$this->assert_same( $case['error'], $data['error'] );
+			$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+		}
+	}
+
+	public function test_external_webhook_rejects_payload_without_required_meta_message_fields() {
+		$request = new WP_REST_Request( 'POST', '/v1/webhooks/send' );
+		$request->set_body( wp_json_encode( [ 'tenant_id' => 1, 'to' => '5511999999999', 'type' => 'text' ] ) );
+		$request->set_header( 'X-WAS-Webhook-Secret', 'external-secret' );
+
+		$response = ( new RouterApiController() )->receive_external_send_webhook( $request );
+		$data = $response->get_data();
+
+		$this->assert_same( 400, $response->get_status() );
+		$this->assert_same( 'invalid_external_send_payload', $data['error'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+	}
+
     public function test_meta_shaped_image_webhook_uses_declared_phone_and_tenant() {
         $payload = $this->payload();
         $message = &$payload['entry'][0]['changes'][0]['value']['messages'][0];
@@ -165,6 +211,36 @@ class ExternalSendWebhookServiceTest extends WAS_Router_TestCase {
         $this->assert_same(11, (int) $outbound['phone_number_id']);
         $this->assert_same('image', $outbound['message_type']);
     }
+
+    public function test_external_public_media_download_infers_filename_and_mime_before_chat_send() {
+        $service = new \WAS\Router\ExternalSendWebhookService();
+        $method = ( new ReflectionClass( $service ) )->getMethod( 'download_external_media' );
+        $method->setAccessible( true );
+
+        $GLOBALS['was_test_http_response'] = [
+            'code' => 200,
+            'body' => 'public-media-fixture',
+        ];
+		$result = $method->invoke( $service, 'https://cdn.test/uploads/audio.ogg', [] );
+
+		$this->assert_false( is_wp_error( $result ) );
+		$this->assert_same( 'audio.ogg', $result['filename'] );
+		$this->assert_same( 'audio/ogg', $result['mime_type'] );
+		$this->assert_same( 'public-media-fixture', file_get_contents( $result['path'] ) );
+		unlink( $result['path'] );
+
+		$invalid_url = $method->invoke( $service, 'file:///tmp/audio.ogg', [] );
+		$this->assert_true( is_wp_error( $invalid_url ) );
+		$this->assert_same( 'external_media_url_invalid', $invalid_url->get_error_code() );
+
+		$GLOBALS['was_test_http_response'] = [
+			'code' => 503,
+			'body' => 'unavailable',
+		];
+		$failed_download = $method->invoke( $service, 'https://cdn.test/uploads/audio.ogg', [] );
+		$this->assert_true( is_wp_error( $failed_download ) );
+		$this->assert_same( 'external_media_download_failed', $failed_download->get_error_code() );
+	}
 
     private function payload() {
         return [

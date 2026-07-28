@@ -158,7 +158,7 @@ class ContactRepository {
         $contact = $this->get_by_id($contact_id);
         if (!$contact) return false;
 
-        $tags = json_decode($contact->tags ?: '[]', true);
+		$tags = json_decode($contact->tags ?? '[]', true);
         if (!in_array($tag, $tags)) {
             $tags[] = $tag;
             return $this->update_tags($contact_id, $tags);
@@ -173,7 +173,7 @@ class ContactRepository {
         $contact = $this->get_by_id($contact_id);
         if (!$contact) return false;
 
-        $tags = json_decode($contact->tags ?: '[]', true);
+		$tags = json_decode($contact->tags ?? '[]', true);
         $tags = array_values(array_diff($tags, [$tag]));
         return $this->update_tags($contact_id, $tags);
     }

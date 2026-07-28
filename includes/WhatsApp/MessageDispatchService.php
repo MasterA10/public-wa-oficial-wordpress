@@ -3,6 +3,7 @@
 namespace WAS\WhatsApp;
 
 use WAS\Meta\MetaApiClient;
+use WAS\Meta\MetaApiResponse;
 use WAS\Meta\TokenVault;
 
 if (!defined('ABSPATH')) {
@@ -110,7 +111,14 @@ class MessageDispatchService {
             ]
         ];
 
-        return MetaApiClient::request('WA_SEND_MESSAGE', ['PHONE_NUMBER_ID' => $phone_number_id], $payload, $token);
+        $result = ( new MetaApiClient() )->postJson(
+            'messages.send',
+            [ 'phone_number_id' => $phone_number_id ],
+            $payload,
+            $token
+        );
+
+        return $this->to_legacy_response( $result );
     }
 
     /**
@@ -133,6 +141,38 @@ class MessageDispatchService {
             ]
         ];
 
-        return MetaApiClient::request('WA_SEND_MESSAGE', ['PHONE_NUMBER_ID' => $phone_number_id], $payload, $token);
+        $result = ( new MetaApiClient() )->postJson(
+            'messages.send',
+            [ 'phone_number_id' => $phone_number_id ],
+            $payload,
+            $token
+        );
+
+        return $this->to_legacy_response( $result );
+    }
+
+    /**
+     * Preserve the object response expected by older inbox/template callers
+     * while using the current array-based MetaApiClient contract internally.
+     */
+    private function to_legacy_response( array $result ): MetaApiResponse {
+        if ( ! empty( $result['success'] ) ) {
+            return MetaApiResponse::success(
+                'WA_SEND_MESSAGE',
+                $result,
+                (int) ( $result['code'] ?? 200 ),
+                $result['fbtrace_id'] ?? null
+            );
+        }
+
+        return MetaApiResponse::error(
+            'WA_SEND_MESSAGE',
+            [
+                'message' => $result['error'] ?? 'Erro desconhecido na Meta API.',
+                'code'    => $result['code'] ?? null,
+            ],
+            (int) ( $result['code'] ?? 400 ),
+            $result['fbtrace_id'] ?? null
+        );
     }
 }

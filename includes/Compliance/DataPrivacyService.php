@@ -53,7 +53,7 @@ class DataPrivacyService {
         AuditLogger::log('delete_contact_data', 'contact', $contact_id);
 
         return $wpdb->update($contacts_table, [
-            'phone' => 'ANONYMOZED',
+            'phone' => 'ANONYMIZED',
             'profile_name' => 'DELETED',
             'opt_in_status' => 'revoked'
         ], [

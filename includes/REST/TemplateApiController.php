@@ -208,7 +208,7 @@ class TemplateApiController {
         $id = $request['id'];
         $template = $this->repository->get_by_id($id);
         if (!$template) {
-            return new WP_REST_Error('not_found', 'Template não encontrado', ['status' => 404]);
+			return new \WP_Error('not_found', 'Template não encontrado', ['status' => 404]);
         }
         return new WP_REST_Response($template, 200);
     }
@@ -225,7 +225,7 @@ class TemplateApiController {
         try {
             $template = $this->repository->get_by_id($id);
             if (!$template) {
-                return new WP_REST_Error('not_found', 'Template não encontrado', ['status' => 404]);
+				return new \WP_Error('not_found', 'Template não encontrado', ['status' => 404]);
             }
 
             $policyService = new \WAS\Templates\TemplatePolicyService();

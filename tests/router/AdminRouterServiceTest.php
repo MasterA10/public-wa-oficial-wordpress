@@ -3,6 +3,7 @@
 use WAS\Core\TableNameResolver;
 use WAS\Router\AdminRouterService;
 use WAS\Router\RawRequestDispatcher;
+use WAS\Router\RouterApiController;
 use WAS\Router\TemplateRouterService;
 
 class AdminRouterServiceTest extends WAS_Router_TestCase {
@@ -241,5 +242,59 @@ class AdminRouterServiceTest extends WAS_Router_TestCase {
 		$this->assert_true( $rotation['token_rotated'] );
 		$this->assert_same( 'disabled', $deleted_phone->status );
 		$this->assert_same( 'disabled', ( new \WAS\Router\RouteRepository() )->find( $route->id )->status );
+	}
+
+	public function test_audit_endpoint_exposes_webhook_forwarding_success_and_failure_logs() {
+		global $wpdb;
+		$GLOBALS['was_test_options']['was_router_service_secret'] = 'service-secret';
+		$logs_table = TableNameResolver::getAuditLogsTable();
+		$wpdb->insert(
+			$logs_table,
+			[
+				'tenant_id'   => 1,
+				'action'      => 'webhook_forwarded',
+				'entity_type' => 'webhook_route',
+				'entity_id'   => 10,
+				'metadata'    => wp_json_encode( [ 'status' => 'delivered', 'event_type' => 'message_received' ] ),
+				'created_at'  => current_time( 'mysql', true ),
+			]
+		);
+		$wpdb->insert(
+			$logs_table,
+			[
+				'tenant_id'   => 1,
+				'action'      => 'webhook_forwarded',
+				'entity_type' => 'webhook_route',
+				'entity_id'   => 11,
+				'metadata'    => wp_json_encode( [ 'status' => 'failed', 'event_type' => 'message_echo' ] ),
+				'created_at'  => current_time( 'mysql', true ),
+			]
+		);
+		$wpdb->insert(
+			$logs_table,
+			[
+				'tenant_id'   => 2,
+				'action'      => 'webhook_forwarded',
+				'entity_type' => 'webhook_route',
+				'entity_id'   => 12,
+				'metadata'    => wp_json_encode( [ 'status' => 'delivered' ] ),
+				'created_at'  => current_time( 'mysql', true ),
+			]
+		);
+
+		$request = new WP_REST_Request( 'GET', '/admin-api/audit' );
+		$request->set_header( 'Authorization', 'Bearer service-secret' );
+		$request->set_query_params( [ 'tenant_id' => 1, 'action' => 'webhook_forwarded' ] );
+		$response = ( new RouterApiController() )->list_audit_logs( $request );
+		$rows = $response->get_data();
+
+		$this->assert_same( 200, $response->get_status() );
+		$this->assert_count( 2, $rows );
+		$statuses = [];
+		foreach ( $rows as $row ) {
+			$statuses[] = json_decode( $row->metadata, true )['status'] ?? null;
+		}
+		$this->assert_true( in_array( 'delivered', $statuses, true ) );
+		$this->assert_true( in_array( 'failed', $statuses, true ) );
 	}
 }

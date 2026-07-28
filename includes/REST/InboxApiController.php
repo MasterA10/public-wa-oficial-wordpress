@@ -349,7 +349,7 @@ class InboxApiController {
         try {
             $conversation = $this->conversation_repo->get_by_id($id);
             if (!$conversation) {
-                return new \WP_REST_Error('not_found', 'Conversa não encontrada', ['status' => 404]);
+                return new \WP_Error('not_found', 'Conversa não encontrada', ['status' => 404]);
             }
 
             // Buscar dados do contato para saber o "to"
@@ -357,7 +357,7 @@ class InboxApiController {
             $contact = $contact_repo->get_by_id($conversation->contact_id);
 
             if (!$contact) {
-                return new \WP_REST_Error('contact_not_found', 'Contato não encontrado', ['status' => 404]);
+                return new \WP_Error('contact_not_found', 'Contato não encontrado', ['status' => 404]);
             }
 
             $tenant_id = \WAS\Auth\TenantContext::get_tenant_id();
@@ -432,7 +432,7 @@ class InboxApiController {
         $conversation = $this->conversation_repo->get_by_id($id);
         
         if (!$conversation) {
-            return new \WP_REST_Error('not_found', 'Conversa não encontrada', ['status' => 404]);
+            return new \WP_Error('not_found', 'Conversa não encontrada', ['status' => 404]);
         }
 
         $messages = $this->message_repo->list_by_conversation($id, 50, 0, TenantContext::get_tenant_id());
@@ -582,7 +582,7 @@ class InboxApiController {
 
         // Keep the canonical field in sync when a route already proved that
         // the public URL exists but the local media join is unavailable.
-        if (!$message->media_url && $media_url) {
+        if (!($message->media_url ?? null) && $media_url) {
             $message->media_url = $media_url;
         }
 

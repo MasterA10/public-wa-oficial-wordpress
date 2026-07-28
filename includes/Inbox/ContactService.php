@@ -35,6 +35,7 @@ class ContactService {
                 'tenant_id'            => $tenantId,
                 'wa_id'                => $waId,
                 'phone'                => $waId,
+                'phone_status'         => 'confirmed_by_wa_id',
                 'profile_name'         => $profileName,
                 'display_name'         => $profileName ?: $waId,
                 'name_source'          => $profileName ? 'whatsapp_profile' : 'phone',

@@ -6,6 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 $GLOBALS['was_test_options'] = [];
 $GLOBALS['was_test_user_meta'] = [];
+$GLOBALS['was_test_capabilities'] = [];
+$GLOBALS['was_test_logged_in'] = true;
 $GLOBALS['was_test_http_posts'] = [];
 $GLOBALS['was_test_http_gets'] = [];
 $GLOBALS['was_test_http_response'] = [
@@ -14,6 +16,7 @@ $GLOBALS['was_test_http_response'] = [
 ];
 $GLOBALS['was_test_http_response_queue'] = [];
 $GLOBALS['was_test_uploads'] = [];
+$GLOBALS['was_test_upload_base'] = sys_get_temp_dir() . '/was-router-uploads';
 
 class WP_Error {
 	private $code;
@@ -57,7 +60,7 @@ class WP_REST_Response {
 	}
 }
 
-class WP_REST_Request {
+class WP_REST_Request implements ArrayAccess {
 	private $method;
 	private $route;
 	private $params = [];
@@ -127,6 +130,37 @@ class WP_REST_Request {
 	public function get_header( $key ) {
 		return $this->headers[ strtolower( (string) $key ) ] ?? '';
 	}
+
+	public function offsetExists( $offset ): bool {
+		return null !== $this->get_param( $offset );
+	}
+
+	public function offsetGet( $offset ): mixed {
+		return $this->get_param( $offset );
+	}
+
+	public function offsetSet( $offset, $value ): void {
+		$this->set_param( $offset, $value );
+	}
+
+	public function offsetUnset( $offset ): void {}
+}
+
+class WAS_Test_User {
+	public $ID = 1;
+	public $display_name = 'Test User';
+	public $user_email = 'test@example.test';
+	public $user_pass = 'secret';
+	public $allcaps = [ 'was_view_inbox' => true, 'was_send_messages' => true ];
+	public $data;
+
+	public function __construct() {
+		$this->data = (object) [ 'user_pass' => $this->user_pass ];
+	}
+
+	public function exists() {
+		return true;
+	}
 }
 
 function is_wp_error( $value ) {
@@ -143,6 +177,51 @@ function plugin_dir_path( $file ) {
 
 function plugin_dir_url( $file ) {
 	return 'http://example.test/wp-content/plugins/' . basename( dirname( $file ) ) . '/';
+}
+
+function rest_ensure_response( $value ) {
+	return $value instanceof WP_REST_Response ? $value : new WP_REST_Response( $value, 200 );
+}
+
+function is_user_logged_in() {
+	return (bool) $GLOBALS['was_test_logged_in'];
+}
+
+function current_user_can( $capability ) {
+	return user_can( get_current_user_id(), $capability );
+}
+
+function wp_get_current_user() {
+	return new WAS_Test_User();
+}
+
+function wp_check_password( $password, $hash, $user_id = 0 ) {
+	return (string) $password === (string) $hash;
+}
+
+function wp_generate_uuid4() {
+	return '00000000-0000-4000-8000-' . str_pad( (string) mt_rand( 1, 999999999999 ), 12, '0', STR_PAD_LEFT );
+}
+
+function home_url( $path = '' ) {
+	return 'https://example.test' . (string) $path;
+}
+
+function rest_url( $path = '' ) {
+	return home_url( '/wp-json/' . ltrim( (string) $path, '/' ) );
+}
+
+function admin_url( $path = '' ) {
+	return home_url( '/wp-admin/' . ltrim( (string) $path, '/' ) );
+}
+
+function is_admin() {
+	return false;
+}
+
+function register_rest_route( $namespace, $route, $args ) {
+	$GLOBALS['was_test_rest_routes'][ $namespace . $route ] = $args;
+	return true;
 }
 
 function trailingslashit( $path ) {
@@ -174,6 +253,26 @@ function sanitize_title( $value ) {
 	return trim( $value, '-' );
 }
 
+if ( ! function_exists( 'remove_accents' ) ) {
+	function remove_accents( $text ) {
+		return strtr(
+			(string) $text,
+			[
+				'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'ä' => 'a',
+				'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+				'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+				'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o', 'ö' => 'o',
+				'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c',
+				'Á' => 'A', 'À' => 'A', 'Ã' => 'A', 'Â' => 'A', 'Ä' => 'A',
+				'É' => 'E', 'È' => 'E', 'Ê' => 'E', 'Ë' => 'E',
+				'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+				'Ó' => 'O', 'Ò' => 'O', 'Õ' => 'O', 'Ô' => 'O', 'Ö' => 'O',
+				'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U', 'Ç' => 'C',
+			]
+		);
+	}
+}
+
 function esc_url_raw( $value ) {
 	return trim( (string) $value );
 }
@@ -198,9 +297,16 @@ function wp_parse_url( $url, $component = -1 ) {
 	return parse_url( $url, $component );
 }
 
-function add_query_arg( $args, $url ) {
-	$separator = strpos( $url, '?' ) === false ? '?' : '&';
-	return $url . $separator . http_build_query( $args );
+function add_query_arg( $key, $value = null, $url = null ) {
+	if ( is_array( $key ) ) {
+		$args = $key;
+		$base = (string) $value;
+	} else {
+		$args = [ (string) $key => $value ];
+		$base = (string) $url;
+	}
+	$separator = strpos( $base, '?' ) === false ? '?' : '&';
+	return $base . $separator . http_build_query( $args );
 }
 
 function wp_remote_post( $url, $args = [] ) {
@@ -262,11 +368,48 @@ function wp_upload_bits( $name, $deprecated, $bits ) {
 	return $result;
 }
 
+function wp_upload_dir() {
+	$base = $GLOBALS['was_test_upload_base'] ?? ( sys_get_temp_dir() . '/was-router-uploads' );
+	if ( ! is_dir( $base ) ) {
+		mkdir( $base, 0777, true );
+	}
+	return [
+		'basedir' => $base,
+		'baseurl' => 'https://wordpress.test/uploads',
+		'error'   => false,
+	];
+}
+
+function wp_mkdir_p( $target ) {
+	return is_dir( $target ) || mkdir( $target, 0777, true );
+}
+
+function wp_unique_filename( $dir, $filename ) {
+	$filename = sanitize_file_name( $filename );
+	$path = rtrim( $dir, '/\\' ) . '/' . $filename;
+	if ( ! file_exists( $path ) ) {
+		return $filename;
+	}
+
+	$info = pathinfo( $filename );
+	$stem = $info['filename'] ?? 'file';
+	$extension = isset( $info['extension'] ) ? '.' . $info['extension'] : '';
+	$index = 1;
+	while ( file_exists( rtrim( $dir, '/\\' ) . '/' . $stem . '-' . $index . $extension ) ) {
+		$index++;
+	}
+	return $stem . '-' . $index . $extension;
+}
+
 function get_user_by( $field, $value ) {
 	return (object) [ 'ID' => (int) $value ];
 }
 
 function user_can( $user, $capability ) {
+	$user_id = is_object( $user ) ? (int) ( $user->ID ?? 0 ) : (int) $user;
+	if ( array_key_exists( $capability, $GLOBALS['was_test_capabilities'][ $user_id ] ?? [] ) ) {
+		return (bool) $GLOBALS['was_test_capabilities'][ $user_id ][ $capability ];
+	}
 	return true;
 }
 
@@ -292,6 +435,7 @@ function update_user_meta( $user_id, $key, $value ) {
 
 class WAS_Test_WPDB {
 	public $prefix = 'wp_';
+	public $users = 'wp_users';
 	public $insert_id = 0;
 	public $last_error = '';
 	public $tables = [];
@@ -345,6 +489,35 @@ class WAS_Test_WPDB {
 		return $before - count( $this->tables[ $table ] );
 	}
 
+	public function replace( $table, $data ) {
+		$identity = [];
+		foreach ( [ 'id', 'tenant_id', 'user_id', 'phone_number_id', 'waba_id', 'meta_template_id', 'session_uuid' ] as $field ) {
+			if ( array_key_exists( $field, $data ) ) {
+				$identity[ $field ] = $data[ $field ];
+			}
+		}
+
+		if ( $identity ) {
+			foreach ( $this->tables[ $table ] ?? [] as $index => $row ) {
+				$matches = true;
+				foreach ( $identity as $field => $value ) {
+					if ( (string) ( $row[ $field ] ?? '' ) !== (string) $value ) {
+						$matches = false;
+						break;
+					}
+				}
+				if ( $matches ) {
+					$data['id'] = $row['id'] ?? null;
+					$this->tables[ $table ][ $index ] = array_merge( $row, $data );
+					$this->insert_id = (int) ( $data['id'] ?? 0 );
+					return 1;
+				}
+			}
+		}
+
+		return $this->insert( $table, $data );
+	}
+
 	public function prepare( $query, ...$params ) {
 		if ( 1 === count( $params ) && is_array( $params[0] ) ) {
 			$params = $params[0];
@@ -373,6 +546,9 @@ class WAS_Test_WPDB {
 		$rows = $this->get_results( $sql );
 		if ( empty( $rows ) ) {
 			return null;
+		}
+		if ( preg_match( '/SELECT\s+1\s+FROM/i', $sql ) ) {
+			return 1;
 		}
 		if ( preg_match( '/SELECT\s+([`\w]+)\s+FROM/i', $sql, $matches ) ) {
 			$field = trim( $matches[1], '`' );
@@ -489,6 +665,16 @@ class WAS_Test_WPDB {
 		}
 		if ( preg_match( '/ORDER BY\s+id\s+DESC/i', $sql ) ) {
 			usort( $rows, fn( $a, $b ) => ( $b['id'] ?? 0 ) <=> ( $a['id'] ?? 0 ) );
+		} elseif ( preg_match( '/ORDER BY\s+is_default\s+DESC,\s*created_at\s+DESC/i', $sql ) ) {
+			usort(
+				$rows,
+				fn( $a, $b ) => [ (int) ( $b['is_default'] ?? 0 ), (string) ( $b['created_at'] ?? '' ) ] <=> [ (int) ( $a['is_default'] ?? 0 ), (string) ( $a['created_at'] ?? '' ) ]
+			);
+		} elseif ( preg_match( '/ORDER BY\s+is_default\s+DESC,\s*id\s+ASC/i', $sql ) ) {
+			usort(
+				$rows,
+				fn( $a, $b ) => [ (int) ( $b['is_default'] ?? 0 ), (int) ( $a['id'] ?? 0 ) ] <=> [ (int) ( $a['is_default'] ?? 0 ), (int) ( $b['id'] ?? 0 ) ]
+			);
 		} elseif ( preg_match( '/ORDER BY\s+priority\s+ASC,\s*id\s+ASC/i', $sql ) ) {
 			usort( $rows, fn( $a, $b ) => [ $a['priority'] ?? 100, $a['id'] ?? 0 ] <=> [ $b['priority'] ?? 100, $b['id'] ?? 0 ] );
 		} elseif ( preg_match( '/ORDER BY\s+created_at\s+DESC/i', $sql ) ) {
@@ -516,6 +702,9 @@ function was_router_tests_reset() {
 	$GLOBALS['wpdb']->reset();
 	$GLOBALS['was_test_options'] = [];
 	$GLOBALS['was_test_user_meta'] = [];
+	$GLOBALS['was_test_capabilities'] = [];
+	$GLOBALS['was_test_logged_in'] = true;
+	$GLOBALS['was_test_rest_routes'] = [];
 	$GLOBALS['was_test_http_posts'] = [];
 	$GLOBALS['was_test_http_gets'] = [];
 	$GLOBALS['was_test_http_response'] = [
@@ -524,6 +713,7 @@ function was_router_tests_reset() {
 	];
 	$GLOBALS['was_test_http_response_queue'] = [];
 	$GLOBALS['was_test_uploads'] = [];
+	$GLOBALS['was_test_upload_base'] = sys_get_temp_dir() . '/was-router-uploads';
 }
 
 function was_router_table( $name ) {

@@ -46,7 +46,9 @@ class MetaOAuthService {
 	 * @throws \RuntimeException If the exchange fails.
 	 */
 	public function exchangeCodeForToken( $code ) {
-		$app = $this->app_repository->get_active_app();
+		// App secrets are encrypted at rest by MetaAppRepository. OAuth must use
+		// the decrypted value when building the Graph API query.
+		$app = $this->app_repository->get_active_app( true );
 
 		if ( ! $app || ! $app->app_id || ! $app->app_secret ) {
 			throw new \RuntimeException( 'Meta App credentials not configured.' );

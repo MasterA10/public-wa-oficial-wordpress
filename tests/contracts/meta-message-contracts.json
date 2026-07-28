@@ -1,0 +1,361 @@
+{
+  "version": 1,
+  "description": "Portable WhatsApp/Meta message contracts. Any implementation can consume this file.",
+  "cases": [
+    {
+      "id": "received_text",
+      "kind": "received",
+      "meta_webhook": {
+        "object": "whatsapp_business_account",
+        "entry": [{
+          "id": "waba-1",
+          "changes": [{
+            "field": "messages",
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": { "phone_number_id": "meta-phone-1" },
+              "messages": [{
+                "id": "wamid-received-1",
+                "from": "553199919648",
+                "timestamp": "1784318002",
+                "type": "text",
+                "text": { "body": "Mensagem recebida" }
+              }]
+            }
+          }]
+        }]
+      },
+      "expected_normalized": {
+        "wa_message_id": "wamid-received-1",
+        "from": "553199919648",
+        "message_type": "text",
+        "text_body": "Mensagem recebida"
+      },
+      "expected_event": { "event_type": "message_received", "message_type": "text" }
+    },
+    {
+      "id": "received_image",
+      "kind": "received",
+      "meta_webhook": {
+        "object": "whatsapp_business_account",
+        "entry": [{
+          "id": "waba-1",
+          "changes": [{
+            "field": "messages",
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": { "phone_number_id": "meta-phone-1" },
+              "messages": [{
+                "id": "wamid-received-image-1",
+                "from": "553199919648",
+                "type": "image",
+                "image": {
+                  "id": "meta-image-1",
+                  "mime_type": "image/jpeg",
+                  "sha256": "image-hash",
+                  "caption": "Foto"
+                }
+              }]
+            }
+          }]
+        }]
+      },
+      "expected_normalized": {
+        "wa_message_id": "wamid-received-image-1",
+        "from": "553199919648",
+        "message_type": "image",
+        "meta_media_id": "meta-image-1",
+        "mime_type": "image/jpeg",
+        "text_body": "Foto"
+      },
+      "expected_event": { "event_type": "message_received", "message_type": "image" }
+    },
+    {
+      "id": "echo_text",
+      "kind": "echo",
+      "meta_webhook": {
+        "object": "whatsapp_business_account",
+        "entry": [{
+          "id": "waba-1",
+          "changes": [{
+            "field": "smb_message_echoes",
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": { "phone_number_id": "meta-phone-1" },
+              "message_echoes": [{
+                "id": "wamid-echo-1",
+                "from": "553171183457",
+                "to": "553199919648",
+                "type": "text",
+                "text": { "body": "Mensagem enviada pelo aplicativo" }
+              }]
+            }
+          }]
+        }]
+      },
+      "expected_normalized": {
+        "wa_message_id": "wamid-echo-1",
+        "from": "553171183457",
+        "message_type": "text",
+        "text_body": "Mensagem enviada pelo aplicativo"
+      },
+      "expected_event": { "event_type": "message_echo", "message_type": "text" }
+    },
+    {
+      "id": "sent_status",
+      "kind": "status",
+      "meta_webhook": {
+        "object": "whatsapp_business_account",
+        "entry": [{
+          "id": "waba-1",
+          "changes": [{
+            "field": "messages",
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": { "phone_number_id": "meta-phone-1" },
+              "statuses": [{
+                "id": "wamid-sent-1",
+                "status": "sent",
+                "recipient_id": "553199919648",
+                "timestamp": "1784318003"
+              }]
+            }
+          }]
+        }]
+      },
+      "expected_event": { "event_type": "message_status", "message_type": "sent", "status": "sent" }
+    },
+    {
+      "id": "external_send_text",
+      "kind": "outbound",
+      "external_request": {
+        "phone_number_id": "meta-phone-1",
+        "to": "55 (31) 99919-9648",
+        "type": "text",
+        "text": { "body": "Mensagem enviada pelo middleware" }
+      },
+      "expected_normalized": {
+        "phone_number_id": "meta-phone-1",
+        "to": "5531999199648",
+        "message_type": "text",
+        "payload": { "text": { "body": "Mensagem enviada pelo middleware" } }
+      },
+      "expected_meta_request": {
+        "messaging_product": "whatsapp",
+        "to": "5531999199648",
+        "type": "text",
+        "text": { "body": "Mensagem enviada pelo middleware" }
+      }
+    },
+    {
+      "id": "external_send_public_image",
+      "kind": "outbound",
+      "external_request": {
+        "phone_number_id": "meta-phone-1",
+        "to": "553199919648",
+        "type": "image",
+        "image": {
+          "link": "https://cdn.example.test/foto.jpg",
+          "caption": "Imagem pública",
+          "mime_type": "image/jpeg"
+        }
+      },
+      "expected_normalized": {
+        "phone_number_id": "meta-phone-1",
+        "to": "553199919648",
+        "message_type": "image",
+        "payload": {
+          "image": {
+            "link": "https://cdn.example.test/foto.jpg",
+            "caption": "Imagem pública",
+            "mime_type": "image/jpeg"
+          }
+        }
+      },
+      "expected_public_media": {
+        "input_url": "https://cdn.example.test/foto.jpg",
+        "must_download_before_meta_send": true
+      }
+    },
+    {
+      "id": "embedded_signup_oauth_exchange",
+      "kind": "meta_operation",
+      "operation": "oauth_access_token",
+      "input": {
+        "code": "embedded-signup-code",
+        "app_id": "app-contract",
+        "app_secret": "app-contract-secret"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/oauth/access_token",
+        "query": {
+          "client_id": "app-contract",
+          "client_secret": "app-contract-secret",
+          "code": "embedded-signup-code"
+        }
+      },
+      "expected_response": { "success": true, "access_token": "contract-access-token" }
+    },
+    {
+      "id": "webhook_subscription_with_callback",
+      "kind": "meta_operation",
+      "operation": "subscribe_webhooks",
+      "input": {
+        "waba_id": "waba-contract",
+        "token": "waba-contract-token",
+        "override_callback_uri": "https://app.example.test/wp-json/whatsapp/v1/webhook",
+        "verify_token": "contract-verify-token"
+      },
+      "expected_request": {
+        "method": "POST",
+        "path": "/v25.0/waba-contract/subscribed_apps",
+        "body": {
+          "subscribed_fields": [
+            "messages",
+            "smb_message_echoes",
+            "account_update",
+            "phone_number_quality_update",
+            "phone_number_name_update",
+            "message_template_status_update",
+            "template_category_update"
+          ],
+          "override_callback_uri": "https://app.example.test/wp-json/whatsapp/v1/webhook",
+          "verify_token": "contract-verify-token"
+        }
+      },
+      "expected_response": { "success": true }
+    },
+    {
+      "id": "template_create",
+      "kind": "meta_operation",
+      "operation": "templates_create",
+      "input": {
+        "waba_id": "waba-contract",
+        "token": "waba-contract-token",
+        "payload": {
+          "name": "appointment_reminder",
+          "category": "UTILITY",
+          "language": "pt_BR",
+          "components": [
+            { "type": "BODY", "text": "Olá, seu atendimento está confirmado." }
+          ]
+        }
+      },
+      "expected_request": {
+        "method": "POST",
+        "path": "/v25.0/waba-contract/message_templates",
+        "body": {
+          "name": "appointment_reminder",
+          "category": "UTILITY",
+          "language": "pt_BR",
+          "components": [
+            { "type": "BODY", "text": "Olá, seu atendimento está confirmado." }
+          ]
+        }
+      },
+      "expected_response": { "success": true, "id": "meta-result" }
+    },
+    {
+      "id": "template_list",
+      "kind": "meta_operation",
+      "operation": "templates_list",
+      "input": {
+        "waba_id": "waba-contract",
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/waba-contract/message_templates",
+        "query": {
+          "fields": "id,name,status,category,language,components,rejected_reason"
+        }
+      },
+      "expected_response": { "success": true, "data": [] }
+    },
+    {
+      "id": "waba_get",
+      "kind": "meta_operation",
+      "operation": "graph_get",
+      "input": {
+        "graph_operation": "waba.get",
+        "path_params": { "waba_id": "waba-contract" },
+        "query": { "fields": "id,name,currency,timezone_id" },
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/waba-contract",
+        "query": { "fields": "id,name,currency,timezone_id" }
+      },
+      "expected_response": { "success": true, "id": "waba-contract" }
+    },
+    {
+      "id": "waba_phone_numbers_list",
+      "kind": "meta_operation",
+      "operation": "graph_get",
+      "input": {
+        "graph_operation": "waba.phone_numbers",
+        "path_params": { "waba_id": "waba-contract" },
+        "query": { "fields": "id,display_phone_number,verified_name,status,quality_rating" },
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/waba-contract/phone_numbers",
+        "query": { "fields": "id,display_phone_number,verified_name,status,quality_rating" }
+      },
+      "expected_response": { "success": true, "data": [] }
+    },
+    {
+      "id": "waba_subscribed_apps_list",
+      "kind": "meta_operation",
+      "operation": "graph_get",
+      "input": {
+        "graph_operation": "waba.get_subscribed_apps",
+        "path_params": { "waba_id": "waba-contract" },
+        "query": {},
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/waba-contract/subscribed_apps"
+      },
+      "expected_response": { "success": true, "data": [] }
+    },
+    {
+      "id": "phone_details",
+      "kind": "meta_operation",
+      "operation": "graph_get",
+      "input": {
+        "graph_operation": "phone.get",
+        "path_params": { "phone_number_id": "phone-contract" },
+        "query": { "fields": "id,display_phone_number,verified_name,status,quality_rating" },
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/phone-contract",
+        "query": { "fields": "id,display_phone_number,verified_name,status,quality_rating" }
+      },
+      "expected_response": { "success": true, "id": "phone-contract" }
+    },
+    {
+      "id": "phone_business_profile",
+      "kind": "meta_operation",
+      "operation": "graph_get",
+      "input": {
+        "graph_operation": "phone.business_profile",
+        "path_params": { "phone_number_id": "phone-contract" },
+        "query": { "fields": "messaging_product,about,address,description,email,profile_picture_url,websites,vertical" },
+        "token": "waba-contract-token"
+      },
+      "expected_request": {
+        "method": "GET",
+        "path": "/v25.0/phone-contract/whatsapp_business_profile",
+        "query": { "fields": "messaging_product,about,address,description,email,profile_picture_url,websites,vertical" }
+      },
+      "expected_response": { "success": true, "data": [] }
+    }
+  ]
+}

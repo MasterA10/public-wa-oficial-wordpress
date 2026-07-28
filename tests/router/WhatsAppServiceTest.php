@@ -257,6 +257,142 @@ class WhatsAppServiceTest extends WAS_Router_TestCase {
 		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
 	}
 
+	public function test_send_message_rejects_unknown_internal_phone_before_calling_meta() {
+		$result = ( new WhatsAppService() )->send_message(
+			[
+				'phone_number_id' => 999,
+				'to_number'       => '5511999999999',
+				'message_type'    => 'text',
+				'payload'         => [ 'text' => [ 'body' => 'Nao deve sair' ] ],
+			]
+		);
+
+		$this->assert_true( is_wp_error( $result ) );
+		$this->assert_same( 'phone_number_not_found', $result->get_error_code() );
+		$this->assert_same( 404, $result->get_error_data()['status'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+	}
+
+	public function test_send_message_returns_clear_error_when_meta_token_is_missing() {
+		global $wpdb;
+
+		$wpdb->tables[ TableNameResolver::get_table_name( 'meta_tokens' ) ] = [];
+		$result = ( new WhatsAppService() )->send_message(
+			[
+				'phone_number_id' => 10,
+				'to_number'       => '5511999999999',
+				'message_type'    => 'text',
+				'payload'         => [ 'text' => [ 'body' => 'Sem token' ] ],
+			]
+		);
+
+		$this->assert_true( is_wp_error( $result ) );
+		$this->assert_same( 'meta_token_not_found', $result->get_error_code() );
+		$this->assert_same( 409, $result->get_error_data()['status'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+	}
+
+	public function test_send_message_persists_meta_error_as_failed_outbound_contract() {
+		global $wpdb;
+
+		$GLOBALS['was_test_http_response'] = [
+			'code' => 400,
+			'body' => [
+				'error' => [
+					'message' => 'Unsupported post request',
+					'code'    => 100,
+				],
+			],
+		];
+		$result = ( new WhatsAppService() )->send_message(
+			[
+				'phone_number_id' => 10,
+				'to_number'       => '5511999999999',
+				'message_type'    => 'text',
+				'payload'         => [ 'text' => [ 'body' => 'Erro Meta' ] ],
+			]
+		);
+
+		$this->assert_false( is_wp_error( $result ) );
+		$this->assert_same( 'failed', $result['status'] );
+		$this->assert_false( $result['success'] );
+		$this->assert_same( 'Unsupported post request', $result['meta_response']['error'] );
+		$outbound = $wpdb->tables[ TableNameResolver::getOutboundMessagesTable() ][0];
+		$this->assert_same( 'failed', $outbound['status'] );
+		$this->assert_same( 'Unsupported post request', json_decode( $outbound['meta_response'], true )['error'] );
+	}
+
+	public function test_send_approved_template_validates_body_parameters_before_meta() {
+		global $wpdb;
+
+		$wpdb->insert( TableNameResolver::getTemplatesTable(), [
+			'id'                  => 50,
+			'tenant_id'           => 1,
+			'whatsapp_account_id' => 7,
+			'name'                => 'order_update',
+			'language'            => 'pt_BR',
+			'status'              => 'APPROVED',
+			'components_json'    => wp_json_encode( [ [ 'type' => 'BODY', 'text' => 'Oi {{1}} {{2}}' ] ] ),
+			'deleted_at'          => null,
+		] );
+
+		$result = ( new WhatsAppService() )->send_message(
+			[
+				'phone_number_id' => 10,
+				'to_number'       => '5511999999999',
+				'message_type'    => 'template',
+				'payload'         => [
+					'template' => [
+						'name'       => 'order_update',
+						'language'   => [ 'code' => 'pt_BR' ],
+						'components' => [
+							[ 'type' => 'body', 'parameters' => [ [ 'text' => 'Apenas um' ] ] ],
+						],
+					],
+				],
+			]
+		);
+
+		$this->assert_true( is_wp_error( $result ) );
+		$this->assert_same( 'invalid_template_parameters', $result->get_error_code() );
+		$this->assert_same( 422, $result->get_error_data()['status'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+	}
+
+	public function test_send_message_rejects_known_but_not_approved_template() {
+		global $wpdb;
+
+		$wpdb->insert( TableNameResolver::getTemplatesTable(), [
+			'id'                  => 51,
+			'tenant_id'           => 1,
+			'whatsapp_account_id' => 7,
+			'name'                => 'pending_template',
+			'language'            => 'pt_BR',
+			'status'              => 'PENDING',
+			'components_json'    => '[]',
+			'deleted_at'          => null,
+		] );
+
+		$result = ( new WhatsAppService() )->send_message(
+			[
+				'phone_number_id' => 10,
+				'to_number'       => '5511999999999',
+				'message_type'    => 'template',
+				'payload'         => [
+					'template' => [
+						'name'     => 'pending_template',
+						'language' => [ 'code' => 'pt_BR' ],
+					],
+				],
+			]
+		);
+
+		$this->assert_true( is_wp_error( $result ) );
+		$this->assert_same( 'template_not_approved', $result->get_error_code() );
+		$this->assert_same( 409, $result->get_error_data()['status'] );
+		$this->assert_count( 0, $GLOBALS['was_test_http_posts'] );
+	}
+
 	public function test_http_200_failed_status_marks_outbound_as_failed() {
 		$GLOBALS['was_test_http_response'] = [
 			'code' => 200,
