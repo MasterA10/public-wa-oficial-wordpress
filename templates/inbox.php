@@ -15,6 +15,9 @@ if (!defined('ABSPATH')) {
                 <div id="was-inbox-phone-context" class="description" style="font-size:12px;"></div>
             </div>
             <div class="was-inbox-actions">
+                <a href="<?php echo esc_url( \WAS\Core\URLService::get_page_url( 'templates' ) ); ?>" id="was-open-templates-manager" class="button" title="Gerenciar templates deste número">
+                    <span class="dashicons dashicons-layout" style="vertical-align:middle;"></span> Templates
+                </a>
                 <button id="was-refresh-conversations" class="was-btn-icon" title="Atualizar">
                     <span class="dashicons dashicons-update"></span>
                 </button>

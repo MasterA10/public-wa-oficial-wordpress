@@ -25,7 +25,8 @@ class TemplateApiController {
      * Lista templates do tenant.
      */
     public function get_items(WP_REST_Request $request) {
-        $templates = $this->repository->list_templates();
+        $phone_number_id = (int) $request->get_param( 'phone_number_id' );
+        $templates = $this->repository->list_templates( 50, 0, $phone_number_id ?: null );
         return new WP_REST_Response($templates, 200);
     }
 
@@ -75,7 +76,30 @@ class TemplateApiController {
 
         $tenant_id = TenantContext::get_tenant_id();
         $account_repo = new \WAS\WhatsApp\WhatsAppAccountRepository();
-        $account = $account_repo->getByTenant($tenant_id)[0] ?? null;
+        $phone_number_id = (int) ( $params['phone_number_id'] ?? 0 );
+        $account = null;
+
+        if ( $phone_number_id ) {
+            global $wpdb;
+            $phones_table = \WAS\Core\TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+            $accounts_table = \WAS\Core\TableNameResolver::get_table_name( 'whatsapp_accounts' );
+            $phone = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                $phone_number_id,
+                $tenant_id
+            ) );
+            $account = $phone ? $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM $accounts_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                (int) $phone->whatsapp_account_id,
+                $tenant_id
+            ) ) : null;
+
+            if ( ! $account ) {
+                return new \WP_Error( 'phone_number_not_found', 'Número WhatsApp não encontrado para este tenant.', [ 'status' => 404 ] );
+            }
+        } else {
+            $account = $account_repo->getByTenant($tenant_id)[0] ?? null;
+        }
 
         if (!$account || empty($account->waba_id)) {
             \WAS\Core\SystemLogger::logError('TemplateAPI: WABA ID não configurado.', ['tenant_id' => $tenant_id]);
@@ -109,8 +133,11 @@ class TemplateApiController {
             'body_text'           => $body_text,
             'status'              => 'submitting',
             'friendly_payload'    => json_encode($params),
-            'variable_map'        => json_encode($variable_map)
+            'variable_map'        => json_encode($variable_map),
         ];
+        if ( $phone_number_id ) {
+            $create_data['router_phone_number_id'] = $phone_number_id;
+        }
 
         // Se for autenticação, salvar campos específicos no banco
         if ($is_auth && !empty($params['authentication'])) {
@@ -336,6 +363,26 @@ class TemplateApiController {
     public function sync_templates(WP_REST_Request $request) {
         $tenant_id = TenantContext::get_tenant_id();
         $waba_id = $request->get_param('waba_id');
+        $phone_number_id = (int) $request->get_param( 'phone_number_id' );
+
+        if ( $phone_number_id ) {
+            global $wpdb;
+            $phones_table = \WAS\Core\TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+            $accounts_table = \WAS\Core\TableNameResolver::get_table_name( 'whatsapp_accounts' );
+            $phone = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                $phone_number_id,
+                $tenant_id
+            ) );
+            $waba_id = $phone ? $wpdb->get_var( $wpdb->prepare(
+                "SELECT waba_id FROM $accounts_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                (int) $phone->whatsapp_account_id,
+                $tenant_id
+            ) ) : null;
+            if ( ! $waba_id ) {
+                return new \WP_Error( 'phone_number_not_found', 'Número WhatsApp não encontrado para este tenant.', [ 'status' => 404 ] );
+            }
+        }
         try {
             $sync_service = new \WAS\Templates\TemplateSyncService();
             $result = $sync_service->syncWaba($tenant_id, $waba_id);

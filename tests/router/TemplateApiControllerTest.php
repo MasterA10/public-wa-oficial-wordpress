@@ -81,6 +81,69 @@ class TemplateApiControllerTest extends WAS_Router_TestCase {
 		$this->assert_same( 404, $missing->get_error_data()['status'] );
 	}
 
+	public function test_scoped_list_returns_templates_for_the_selected_phone_waba_only() {
+		global $wpdb;
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_phone_numbers' ), [
+			'id' => 10,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 7,
+			'phone_number_id' => 'meta-phone-10',
+			'status' => 'active',
+		] );
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_accounts' ), [
+			'id' => 8,
+			'tenant_id' => 1,
+			'waba_id' => 'waba-other',
+			'status' => 'active',
+		] );
+		$payload = array_merge( $this->template_payload(), [
+			'body_text' => 'Olá!',
+			'deleted_at' => null,
+		] );
+		$wpdb->insert( TableNameResolver::getTemplatesTable(), array_merge( $payload, [
+			'id' => 41,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 7,
+			'status' => 'APPROVED',
+		] ) );
+		$wpdb->insert( TableNameResolver::getTemplatesTable(), array_merge( $payload, [
+			'id' => 42,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 8,
+			'name' => 'other_waba_template',
+			'status' => 'APPROVED',
+		] ) );
+
+		$request = new WP_REST_Request( 'GET', '/templates?phone_number_id=10' );
+		$request->set_query_params( [ 'phone_number_id' => 10 ] );
+		$response = ( new TemplateApiController() )->get_items( $request );
+
+		$this->assert_same( 200, $response->get_status() );
+		$this->assert_count( 1, $response->get_data() );
+		$this->assert_same( 41, (int) $response->get_data()[0]->id );
+	}
+
+	public function test_create_item_uses_the_selected_phone_account_and_keeps_phone_scope() {
+		global $wpdb;
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_phone_numbers' ), [
+			'id' => 10,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 7,
+			'phone_number_id' => 'meta-phone-10',
+			'status' => 'active',
+		] );
+		$GLOBALS['was_test_http_response'] = [ 'code' => 200, 'body' => [ 'id' => 'meta-phone-template', 'status' => 'PENDING' ] ];
+		$request = new WP_REST_Request( 'POST', '/templates' );
+		$request->set_body( wp_json_encode( array_merge( $this->template_payload(), [ 'phone_number_id' => 10 ] ) ) );
+
+		$response = ( new TemplateApiController() )->create_item( $request );
+		$local = $GLOBALS['wpdb']->tables[ TableNameResolver::getTemplatesTable() ][0];
+
+		$this->assert_same( 201, $response->get_status() );
+		$this->assert_same( 7, (int) $local['whatsapp_account_id'] );
+		$this->assert_same( 10, (int) $local['router_phone_number_id'] );
+	}
+
 	public function test_permissions_check_requires_manage_options() {
 		$GLOBALS['was_test_capabilities'][1]['manage_options'] = false;
 		$this->assert_false( ( new TemplateApiController() )->permissions_check() );

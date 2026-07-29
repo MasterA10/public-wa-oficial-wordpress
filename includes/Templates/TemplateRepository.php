@@ -141,14 +141,34 @@ class TemplateRepository {
         );
     }
 
-    public function list_templates($limit = 50, $offset = 0) {
+    public function list_templates($limit = 50, $offset = 0, $phone_number_id = null) {
         global $wpdb;
         $tenant_id = TenantContext::get_tenant_id();
+        $where = 'tenant_id = %d AND deleted_at IS NULL';
+        $args = [ $tenant_id ];
+
+        if ( $phone_number_id ) {
+            $phones_table = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
+            $account_id = $wpdb->get_var( $wpdb->prepare(
+                "SELECT whatsapp_account_id FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                (int) $phone_number_id,
+                (int) $tenant_id
+            ) );
+
+            if ( ! $account_id ) {
+                return [];
+            }
+
+            $where .= ' AND whatsapp_account_id = %d AND (router_phone_number_id IS NULL OR router_phone_number_id = %d)';
+            $args[] = (int) $account_id;
+            $args[] = (int) $phone_number_id;
+        }
+
+        $args[] = $limit;
+        $args[] = $offset;
         $sql = $wpdb->prepare(
-            "SELECT * FROM {$this->table_name} WHERE tenant_id = %d AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT %d OFFSET %d",
-            $tenant_id,
-            $limit,
-            $offset
+            "SELECT * FROM {$this->table_name} WHERE $where ORDER BY updated_at DESC LIMIT %d OFFSET %d",
+            ...$args
         );
         $results = $wpdb->get_results($sql);
         return $results;

@@ -911,6 +911,16 @@ document.addEventListener('DOMContentLoaded', () => {
             tenantId: pageParams.get('was_tenant_id') || '',
             phoneNumberId: pageParams.get('was_phone_number_id') || ''
         };
+        const templatesManagerLink = document.getElementById('was-open-templates-manager');
+        if (templatesManagerLink && window.wasInboxScope.phoneNumberId) {
+            const target = new URL(templatesManagerLink.href, window.location.href);
+            target.searchParams.set('was_phone_number_id', window.wasInboxScope.phoneNumberId);
+            if (window.wasInboxScope.tenantId) target.searchParams.set('was_tenant_id', window.wasInboxScope.tenantId);
+            const phoneDisplay = pageParams.get('was_phone_display') || '';
+            if (phoneDisplay) target.searchParams.set('was_phone_display', phoneDisplay);
+            templatesManagerLink.href = target.toString();
+            templatesManagerLink.title = `Gerenciar templates de ${phoneDisplay || window.wasInboxScope.phoneNumberId}`;
+        }
         const phoneContext = document.getElementById('was-inbox-phone-context');
         if (phoneContext && window.wasInboxScope.phoneNumberId) {
             phoneContext.textContent = `Número: ${pageParams.get('was_phone_display') || window.wasInboxScope.phoneNumberId}`;
@@ -1602,6 +1612,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const openBtn = document.getElementById('was-open-create-wizard');
         const wizardForm = document.getElementById('was-complex-template-form');
         const syncBtn = document.getElementById('sync-templates');
+        const templatePageParams = new URLSearchParams(window.location.search);
+        const scopedPhoneNumberId = templatePageParams.get('was_phone_number_id') || '';
+        const scopedPhoneDisplay = templatePageParams.get('was_phone_display') || '';
+        const phoneContext = document.getElementById('was-template-phone-context');
+        const phoneContextLabel = document.getElementById('was-template-phone-context-label');
+        if (scopedPhoneNumberId && phoneContext) {
+            phoneContext.style.display = 'block';
+            if (phoneContextLabel) phoneContextLabel.textContent = ` — ${scopedPhoneDisplay || `ID interno ${scopedPhoneNumberId}`}`;
+        }
 
         if (openBtn) openBtn.addEventListener('click', () => { 
             editingTemplateId = null; 
@@ -1765,6 +1784,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 footer: { text: document.getElementById('wiz-footer-text').value },
                 buttons: wizardButtons
             };
+            if (scopedPhoneNumberId) payload.phone_number_id = scopedPhoneNumberId;
 
             if (isAuth) {
                 payload.authentication = {
@@ -1798,7 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             syncBtn.disabled = true;
             syncBtn.textContent = 'Sincronizando...';
             try { 
-                await wasApiFetch('/templates/sync', 'POST'); 
+                await wasApiFetch('/templates/sync', 'POST', scopedPhoneNumberId ? { phone_number_id: scopedPhoneNumberId } : null); 
                 alert('Sincronização concluída com sucesso!');
                 fetchTemplates(); 
             } catch (err) {
@@ -1832,7 +1852,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('template-list-body');
         if (!tbody) return;
         try {
-            const data = await wasApiFetch('/templates');
+            const pageParams = new URLSearchParams(window.location.search);
+            const phoneNumberId = pageParams.get('was_phone_number_id') || '';
+            const query = phoneNumberId ? `?phone_number_id=${encodeURIComponent(phoneNumberId)}` : '';
+            const data = await wasApiFetch(`/templates${query}`);
             tbody.innerHTML = (data || []).map(t => {
                 let color = '#555';
                 const st = (t.status || 'DRAFT').toUpperCase();

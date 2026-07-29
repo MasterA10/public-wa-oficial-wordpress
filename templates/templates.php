@@ -9,6 +9,16 @@ if (!defined('ABSPATH')) {
 ?>
 <div class="wrap">
     <h1>Modelos de Mensagem</h1>
+
+    <div id="was-template-phone-context" class="notice notice-info" style="display:none; margin:16px 0; padding:12px 16px;">
+        <p style="margin:0;">
+            <strong>Templates do número selecionado</strong>
+            <span id="was-template-phone-context-label"></span>
+            <a id="was-template-clear-context" href="<?php echo esc_url( \WAS\Core\URLService::get_page_url( 'templates' ) ); ?>" style="margin-left:12px;">Ver todos os templates</a>
+        </p>
+    </div>
+
+    <p class="description">Aqui você consulta o status na Meta (aprovado, pendente, em análise ou rejeitado), sincroniza, cria, edita, duplica e exclui modelos. Quando a tela for aberta a partir de um número, a listagem fica limitada à sessão desse número.</p>
     
     <div id="was-templates-app">
         <div class="was-actions-bar" style="margin: 20px 0; display: flex; gap: 10px;">
