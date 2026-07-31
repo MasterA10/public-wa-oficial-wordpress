@@ -153,6 +153,12 @@ class AdminMasterApiController {
             ]
 		] );
 
+		register_rest_route( 'was/v1', '/admin/checklists/(?P<slug>[a-z0-9-]+)', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'update_checklist_item' ],
+			'permission_callback' => [ $this, 'checklist_permissions' ],
+		] );
+
 		register_rest_route( 'was/v1', '/admin/audit-logs', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_audit_logs' ],
@@ -486,23 +492,7 @@ class AdminMasterApiController {
      * Get App Review Checklist.
      */
     public function get_review_checklist( $request ) {
-        global $wpdb;
-        $table = TableNameResolver::get_table_name( 'app_review_checklist' );
-        $items = $wpdb->get_results( "SELECT * FROM $table" );
-
-        if ( empty($items) ) {
-            // Default items based on the spec
-            return new WP_REST_Response([
-                ['item_key' => 'business_portfolio_created', 'label' => 'Portfolio de Negócios Criado', 'status' => 'pending'],
-                ['item_key' => 'meta_app_created', 'label' => 'Meta App Criado', 'status' => 'pending'],
-                ['item_key' => 'embedded_signup_configured', 'label' => 'Embedded Signup Configurado', 'status' => 'pending'],
-                ['item_key' => 'privacy_policy_url_added', 'label' => 'URL de Privacidade Adicionada', 'status' => 'pending'],
-                ['item_key' => 'template_creation_video_recorded', 'label' => 'Vídeo: Criação de Template', 'status' => 'pending'],
-                ['item_key' => 'message_sending_video_recorded', 'label' => 'Vídeo: Envio de Mensagem', 'status' => 'pending'],
-            ], 200);
-        }
-
-        return new WP_REST_Response( $items, 200 );
+        return new WP_REST_Response( ( new \WAS\Compliance\ChecklistService() )->get_items( 'app-review' ), 200 );
     }
 
     /**
@@ -823,7 +813,7 @@ class AdminMasterApiController {
     /**
      * Update App Review Item.
      */
-    public function update_review_item( $request ) {
+	public function update_review_item( $request ) {
         $params = $request->get_json_params();
         global $wpdb;
         $table = TableNameResolver::get_table_name( 'app_review_checklist' );
@@ -845,5 +835,22 @@ class AdminMasterApiController {
 	 */
 	public function permissions_check() {
 		return current_user_can( 'was_view_master_dashboard' );
+	}
+
+	/** Update an item from any checklist exposed in the Checklists menu. */
+	public function update_checklist_item( $request ) {
+		$params = $request->get_json_params();
+		$service = new \WAS\Compliance\ChecklistService();
+		$slug = sanitize_key( $request['slug'] );
+		$key = sanitize_key( $params['item_key'] ?? '' );
+		$status = sanitize_key( $params['status'] ?? 'pending' );
+		if ( ! $service->update_item( $slug, $key, $status ) ) {
+			return new WP_REST_Response( [ 'success' => false, 'message' => 'Checklist ou item inválido.' ], 400 );
+		}
+		return new WP_REST_Response( [ 'success' => true ], 200 );
+	}
+
+	public function checklist_permissions() {
+		return current_user_can( 'was_manage_compliance' );
 	}
 }

@@ -61,6 +61,8 @@ class Plugin {
 	 */
 	private function register_rewrite_rules() {
 		add_action( 'init', function() {
+			add_rewrite_rule( '^checklists/?$', 'index.php?was_checklist=app-review', 'top' );
+			add_rewrite_rule( '^checklists/([^/]+)/?$', 'index.php?was_checklist=$matches[1]', 'top' );
 			add_rewrite_rule( '^app/login/?$', 'index.php?was_app_page=login', 'top' );
 			add_rewrite_rule( '^app/dashboard/?$', 'index.php?was_app_page=dashboard', 'top' );
 			add_rewrite_rule( '^app/(.+)/?$', 'index.php?was_app_page=$matches[1]', 'top' );
@@ -80,7 +82,7 @@ class Plugin {
             
             // Force flush if rule is missing (bulletproof for sync)
             $rules = get_option( 'rewrite_rules' );
-            if ( ! is_array( $rules ) || ! isset( $rules['^was-meta-check-99/?$'] ) || ! isset( $rules['^auth/login/?$'] ) || ! isset( $rules['^auth/me/?$'] ) ) {
+            if ( ! is_array( $rules ) || ! isset( $rules['^checklists/([^/]+)/?$'] ) || ! isset( $rules['^was-meta-check-99/?$'] ) || ! isset( $rules['^auth/login/?$'] ) || ! isset( $rules['^auth/me/?$'] ) ) {
                 flush_rewrite_rules( false );
             }
 		}, 99 );
@@ -95,12 +97,14 @@ class Plugin {
 
 		add_filter( 'query_vars', function( $vars ) {
 			$vars[] = 'was_app_page';
+			$vars[] = 'was_checklist';
             $vars[] = 'was_meta_webhook';
 			$vars[] = 'was_router_path';
 			return $vars;
 		} );
 
 		add_action( 'template_redirect', [ $this, 'handle_app_routing' ] );
+		add_action( 'template_redirect', [ $this, 'handle_checklist_routing' ] );
         add_action( 'template_redirect', [ $this, 'handle_raw_webhook' ] );
 		add_action( 'template_redirect', function() {
 			( new \WAS\Router\RawRequestDispatcher() )->maybe_dispatch();
@@ -116,6 +120,21 @@ class Plugin {
             }
             return $template;
         } );
+	}
+
+	/** Render a read-only public checklist URL. */
+	public function handle_checklist_routing() {
+		$slug = sanitize_key( get_query_var( 'was_checklist' ) );
+		if ( ! $slug ) {
+			return;
+		}
+		$checklist = ( new \WAS\Compliance\ChecklistService() )->get( $slug );
+		if ( ! $checklist ) {
+			status_header( 404 );
+			return;
+		}
+		include WAS_PLUGIN_DIR . 'templates/checklist-public.php';
+		exit;
 	}
 
     /**

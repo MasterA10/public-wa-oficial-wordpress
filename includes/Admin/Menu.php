@@ -46,6 +46,7 @@ class Menu {
             'was-master_page_was-master-webhooks' => 'master-webhooks',
             'was-master_page_was-master-tokens' => 'master-tokens',
             'was-master_page_was-master-review' => 'master-review',
+            'was-master_page_was-master-checklists' => 'master-checklists',
             'was-master_page_was-master-audit' => 'master-audit',
             'was-master_page_was-master-settings' => 'master-settings',
         ];
@@ -79,6 +80,7 @@ class Menu {
             add_submenu_page('was-master-dashboard', 'Webhooks', 'Webhooks', 'was_platform_admin', 'was-master-webhooks', [$this, 'render_master_webhooks']);
             add_submenu_page('was-master-dashboard', 'Tokens e Permissões', 'Tokens', 'was_platform_admin', 'was-master-tokens', [$this, 'render_master_tokens']);
             add_submenu_page('was-master-dashboard', 'App Review / Compliance', 'Review', 'was_manage_compliance', 'was-master-review', [$this, 'render_master_review']);
+            add_submenu_page('was-master-dashboard', 'Checklists', 'Checklists', 'was_manage_compliance', 'was-master-checklists', [$this, 'render_master_checklists']);
             add_submenu_page('was-master-dashboard', 'Logs Master', 'Logs', 'was_view_logs', 'was-master-audit', [$this, 'render_master_audit']);
             add_submenu_page('was-master-dashboard', 'Configurações Globais', 'Config. Globais', 'was_platform_admin', 'was-master-settings', [$this, 'render_master_settings']);
         }
@@ -211,6 +213,10 @@ class Menu {
 
     public function render_master_review() {
         include WAS_PLUGIN_DIR . 'templates/admin-master/review.php';
+    }
+
+    public function render_master_checklists() {
+        include WAS_PLUGIN_DIR . 'templates/admin-master/checklists.php';
     }
 
     public function render_master_audit() {
