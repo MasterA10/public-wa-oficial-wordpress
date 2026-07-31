@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Checklist de Permissões WhatsApp</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #dbe3ee;
+            --ok: #16a34a;
+            --warn: #ca8a04;
+            --accent: #007bff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.45;
+        }
+        main {
+            max-width: 940px;
+            margin: 2rem auto;
+            padding: 0 1rem 2rem;
+        }
+        h1, h2 {
+            margin: 0 0 .6rem;
+            line-height: 1.2;
+        }
+        h1 { font-size: 1.6rem; }
+        h2 { font-size: 1.25rem; margin-top: 1.5rem; }
+        p { margin: .4rem 0 1rem; color: var(--muted); }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 10px rgba(15,23,42,.05);
+        }
+        .pill {
+            display: inline-block;
+            font-size: .8rem;
+            font-weight: 600;
+            border-radius: 999px;
+            padding: .2rem .65rem;
+            background: #e0edff;
+            color: #0b3d91;
+            margin-left: .5rem;
+        }
+        .meta {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 12px;
+            padding: .85rem 1rem;
+            margin: .75rem 0 1rem;
+        }
+        ul { margin: 0; padding-left: 1.25rem; }
+        li {
+            margin: .65rem 0;
+            padding-left: .2rem;
+        }
+        .checklist li {
+            list-style: none;
+            display: flex;
+            align-items: flex-start;
+            gap: .55rem;
+        }
+        .checklist input[type="checkbox"] { margin-top: .2rem; }
+        .label-title {
+            font-weight: 700;
+            display: block;
+            margin-bottom: .15rem;
+        }
+        .muted { color: var(--muted); font-size: .93rem; }
+        .status-bar {
+            margin-top: .8rem;
+            font-size: .9rem;
+            color: #334155;
+        }
+        .status-bar strong { color: var(--text); }
+        .tag {
+            color: #4c1d95;
+            background: #f3e8ff;
+            border-radius: 6px;
+            padding: .1rem .4rem;
+            font-size: .75rem;
+            margin-left: .25rem;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section class="card">
+        <h1>Checklist de Onboarding: autorizações WhatsApp</h1>
+        <p>
+            Para conectar a plataforma ao WhatsApp, o app precisa de duas permissões: <strong>whatsapp_business_messaging</strong> e <strong>whatsapp_business_management</strong>.
+            Esta página é uma lista de validação para o usuário marcar durante a habilitação.
+        </p>
+        <div class="meta">
+            <strong>Resumo das exigências da Meta (baseado em docs oficiais):</strong>
+            <ul>
+                <li>Para uso da sua própria empresa (desenvolvedor direto), o app de negócio pode testar com acesso padrão em usuários com função de admin/desenvolvedor.</li>
+                <li>Para produto que atende outras empresas (solution provider), é necessário solicitar <strong>Advanced Access</strong> em <strong>App Review</strong> para cada permissão.</li>
+                <li>O App Review exige <strong>explicação escrita + gravação de uso</strong> para cada permissão solicitada.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>
+            1) whatsapp_business_messaging
+            <span class="pill">Mensagens</span>
+        </h2>
+        <p class="muted">
+            Precisa dessa permissão para funcionalidades como envio de mensagens, leitura de status e interação operacional com conversas no seu SaaS.
+        </p>
+        <ul class="checklist" data-group="messaging">
+            <li>
+                <input type="checkbox" id="msg-1" />
+                <div>
+                    <span class="label-title">Enviar mensagem para cliente pelo painel de Conversas</span>
+                    <span class="muted">Mapeia diretamente para <strong>envio via /messages</strong>.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="msg-2" />
+                <div>
+                    <span class="label-title">Receber mensagens do cliente no Inbox</span>
+                    <span class="muted">Exige assinatura de eventos/webhooks da WABA para atualização de mensagens.</span>
+                    <span class="tag">funcionalidade ativa</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="msg-3" />
+                <div>
+                    <span class="label-title">Consultar status de entrega/visualização</span>
+                    <span class="muted">Permite acompanhar o ciclo completo da conversa no histórico e dashboards.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="msg-4" />
+                <div>
+                    <span class="label-title">Enviamos registro de prova de uso para App Review</span>
+                    <span class="muted">Incluir fluxo funcional de envio de mensagem em ambiente funcional.</span>
+                </div>
+            </li>
+        </ul>
+        <div class="status-bar" id="status-messaging">Concluídas: 0/4</div>
+    </section>
+
+    <section class="card">
+        <h2>
+            2) whatsapp_business_management
+            <span class="pill">Gestão</span>
+        </h2>
+        <p class="muted">
+            É necessária para gerenciar ativos da WhatsApp Business dentro da plataforma (WABA, número, templates e configurações), que é exatamente o que o onboarding já faz hoje.
+            A opção de coexistência com o app oficial do WhatsApp Business também é tratada por essa permissão.
+        </p>
+        <ul class="checklist" data-group="management">
+            <li>
+                <input type="checkbox" id="mgmt-1" />
+                <div>
+                    <span class="label-title">Conectar WABA e número oficial</span>
+                    <span class="muted">Etapa base do seu onboarding atual.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="mgmt-2" />
+                <div>
+                    <span class="label-title">Criar e editar templates no fluxo oficial</span>
+                    <span class="muted">Necessário para comunicações transacionais e campanhas aprovadas.</span>
+                    <span class="tag">Templates</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="mgmt-3" />
+                <div>
+                    <span class="label-title">Sincronizar templates e conta WABA</span>
+                    <span class="muted">Mantém a visão do app em sincronia com Meta.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="mgmt-4" />
+                <div>
+                    <span class="label-title">Configurar assinatura de webhook e testar evento</span>
+                    <span class="muted">Permite acompanhar mensagens recebidas, falhas e status em tempo real.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="mgmt-5" />
+                <div>
+                    <span class="label-title">Incluir gravação de uso para App Review</span>
+                    <span class="muted">Fluxo separado para criação/gestão de template e gestão do ambiente.</span>
+                </div>
+            </li>
+            <li>
+                <input type="checkbox" id="mgmt-6" />
+                <div>
+                    <span class="label-title">Ativar coexistência com o app oficial</span>
+                    <span class="muted">
+                        Esta funcionalidade está vinculada à permissão <strong>whatsapp_business_management</strong> e permite manter o app oficial ativo enquanto usa sua operação no SaaS.
+                    </span>
+                </div>
+            </li>
+        </ul>
+        <div class="status-bar" id="status-management">Concluídas: 0/6</div>
+    </section>
+
+    <section class="card">
+        <h2>Pré-requisitos do fluxo completo</h2>
+        <ul class="checklist" data-group="final">
+            <li>
+            <input type="checkbox" id="final-1" />
+                <span>Conta de Desenvolvedor ativa na Meta.</span>
+            </li>
+            <li>
+                <input type="checkbox" id="final-2" />
+                <span>Termos e política de privacidade públicos e atualizados no app.</span>
+            </li>
+            <li>
+                <input type="checkbox" id="final-3" />
+                <span>Informações de negócio e casos de uso alinhadas com a tela de revisão da Meta.</span>
+            </li>
+            <li>
+                <input type="checkbox" id="final-4" />
+                <span>Enviar vídeo e descrição separados para cada permissão no App Review.</span>
+            </li>
+        </ul>
+        <div class="status-bar" id="status-final">Concluídas: 0/4</div>
+    </section>
+</main>
+
+<script>
+    function updateCounter(groupId, selector) {
+        const checks = document.querySelectorAll(`[data-group="${groupId}"] input[type="checkbox"]`);
+        const done = Array.from(checks).filter((c) => c.checked).length;
+        selector.textContent = `Concluídas: ${done}/${checks.length}`;
+    }
+
+    function wireCounters() {
+        const groups = [
+            ['messaging', document.getElementById('status-messaging')],
+            ['management', document.getElementById('status-management')],
+            ['final', document.getElementById('status-final')]
+        ];
+
+        groups.forEach(([groupId, output]) => {
+            document.querySelectorAll(`[data-group="${groupId}"] input[type="checkbox"]`).forEach((checkbox) => {
+                checkbox.addEventListener('change', () => updateCounter(groupId, output));
+            });
+            updateCounter(groupId, output);
+        });
+    }
+
+    wireCounters();
+</script>
+</body>
+</html>

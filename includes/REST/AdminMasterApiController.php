@@ -154,9 +154,16 @@ class AdminMasterApiController {
 		] );
 
 		register_rest_route( 'was/v1', '/admin/checklists/(?P<slug>[a-z0-9-]+)', [
-			'methods'             => 'POST',
-			'callback'            => [ $this, 'update_checklist_item' ],
-			'permission_callback' => [ $this, 'checklist_permissions' ],
+			[
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'get_checklist_items' ],
+				'permission_callback' => [ $this, 'checklist_permissions' ],
+			],
+			[
+				'methods'             => 'POST',
+				'callback'            => [ $this, 'update_checklist_item' ],
+				'permission_callback' => [ $this, 'checklist_permissions' ],
+			]
 		] );
 
 		register_rest_route( 'was/v1', '/admin/audit-logs', [
@@ -848,6 +855,11 @@ class AdminMasterApiController {
 			return new WP_REST_Response( [ 'success' => false, 'message' => 'Checklist ou item inválido.' ], 400 );
 		}
 		return new WP_REST_Response( [ 'success' => true ], 200 );
+	}
+
+	public function get_checklist_items( $request ) {
+		$items = ( new \WAS\Compliance\ChecklistService() )->get_items( sanitize_key( $request['slug'] ) );
+		return new WP_REST_Response( $items ?: [], 200 );
 	}
 
 	public function checklist_permissions() {
