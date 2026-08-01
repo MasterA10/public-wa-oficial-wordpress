@@ -247,6 +247,11 @@ function sanitize_text_field( $value ) {
 	return trim( preg_replace( '/[\r\n\t]+/', ' ', strip_tags( (string) $value ) ) );
 }
 
+function sanitize_key( $key ) {
+	$key = strtolower( (string) $key );
+	return preg_replace( '/[^a-z0-9_\-]/', '', $key );
+}
+
 function sanitize_title( $value ) {
 	$value = strtolower( sanitize_text_field( $value ) );
 	$value = preg_replace( '/[^a-z0-9]+/', '-', $value );

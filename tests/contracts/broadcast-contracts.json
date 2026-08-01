@@ -1,0 +1,37 @@
+{
+  "module": "disparo",
+  "version": 1,
+  "description": "Portable behavioral contract for template broadcasts.",
+  "cases": [
+    {
+      "id": "create_queue_with_named_variables",
+      "given": {"template_status": "APPROVED", "template_variables": ["nome", "compra"], "rows": 2},
+      "when": "create_broadcast",
+      "then": {"status": "draft", "total_count": 2, "phone_is_normalized": true, "variables_are_named": true}
+    },
+    {
+      "id": "reject_missing_variable",
+      "given": {"template_variables": ["nome", "compra"], "row_variables": ["nome"]},
+      "when": "create_broadcast",
+      "then": {"success": false, "error_contains": "compra"}
+    },
+    {
+      "id": "send_one_item_and_mark_it",
+      "given": {"broadcast_status": "running", "pending_items": 1, "meta_result": "success"},
+      "when": "process_next",
+      "then": {"item_status": "sent", "wa_message_id_recorded": true}
+    },
+    {
+      "id": "pause_prevents_processing",
+      "given": {"broadcast_status": "paused", "pending_items": 1},
+      "when": "process_next",
+      "then": {"processed": false, "pending_items": 1}
+    },
+    {
+      "id": "api_error_is_recorded_as_failure",
+      "given": {"broadcast_status": "running", "pending_items": 1, "meta_result": "invalid_recipient"},
+      "when": "process_next",
+      "then": {"item_status": "failed", "error_is_recorded": true}
+    }
+  ]
+}

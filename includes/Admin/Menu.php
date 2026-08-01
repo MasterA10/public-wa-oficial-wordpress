@@ -38,6 +38,7 @@ class Menu {
             'whatsapp-saas_page_was-settings-meta' => 'settings-meta',
             'whatsapp-saas_page_was-settings-whatsapp' => 'settings-whatsapp',
             'whatsapp-saas_page_was-logs' => 'logs',
+            'whatsapp-saas_page_was-disparo' => 'disparo',
             'toplevel_page_was-master-dashboard' => 'master-dashboard',
             'was-master_page_was-master-tenants' => 'master-tenants',
             'was-master_page_was-master-phones' => 'master-phones',
@@ -124,6 +125,10 @@ class Menu {
         );
 
         add_submenu_page(
+            'was-dashboard', 'Disparo', 'Disparo', 'was_send_messages', 'was-disparo', [$this, 'render_disparo_page']
+        );
+
+        add_submenu_page(
             'was-dashboard',
             'Configurações Meta',
             'Configurações Meta',
@@ -165,6 +170,10 @@ class Menu {
 
     public function render_logs_page() {
         include WAS_PLUGIN_DIR . 'templates/logs.php';
+    }
+
+    public function render_disparo_page() {
+        include WAS_PLUGIN_DIR . 'templates/disparo.php';
     }
 
     public function render_settings_meta() {

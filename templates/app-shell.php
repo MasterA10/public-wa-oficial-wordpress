@@ -24,6 +24,9 @@
                 <?php if (current_user_can('was_view_inbox')): ?>
                     <li><a href="<?php echo \WAS\Core\URLService::get_page_url('inbox'); ?>" class="<?php echo $page === 'inbox' ? 'active' : ''; ?>"><span class="dashicons dashicons-whatsapp"></span> Inbox</a></li>
                 <?php endif; ?>
+                <?php if (current_user_can('was_send_messages')): ?>
+                    <li><a href="<?php echo \WAS\Core\URLService::get_page_url('disparo'); ?>" class="<?php echo $page === 'disparo' ? 'active' : ''; ?>"><span class="dashicons dashicons-megaphone"></span> Disparo</a></li>
+                <?php endif; ?>
 
                 <li class="nav-divider" style="margin: 15px 16px 5px; font-size: 0.7rem; text-transform: uppercase; color: var(--slate-600); font-weight: 700; letter-spacing: 0.05em;">Configurações</li>
                 

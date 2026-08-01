@@ -910,6 +910,47 @@ class Installer {
 			UNIQUE KEY idempotency_key (idempotency_key)
 		) $charset_collate;";
 		dbDelta( $sql_outbound );
+
+		// Disparos em massa e itens individuais da fila.
+		$table_broadcasts = TableNameResolver::getBroadcastsTable();
+		$sql_broadcasts = "CREATE TABLE $table_broadcasts (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			tenant_id bigint(20) UNSIGNED NOT NULL,
+			template_id bigint(20) UNSIGNED NOT NULL,
+			name varchar(190) DEFAULT NULL,
+			category varchar(40) DEFAULT NULL,
+			interval_seconds int(11) NOT NULL DEFAULT 60,
+			cost_per_message decimal(12,6) NOT NULL DEFAULT 0,
+			status varchar(30) NOT NULL DEFAULT 'draft',
+			total_count int(11) NOT NULL DEFAULT 0,
+			sent_count int(11) NOT NULL DEFAULT 0,
+			failed_count int(11) NOT NULL DEFAULT 0,
+			skipped_count int(11) NOT NULL DEFAULT 0,
+			started_at datetime DEFAULT NULL,
+			finished_at datetime DEFAULT NULL,
+			last_error text DEFAULT NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime DEFAULT NULL,
+			PRIMARY KEY (id), KEY tenant_id (tenant_id), KEY status (status), KEY template_id (template_id)
+		) $charset_collate;";
+		dbDelta( $sql_broadcasts );
+
+		$table_broadcast_items = TableNameResolver::getBroadcastItemsTable();
+		$sql_broadcast_items = "CREATE TABLE $table_broadcast_items (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			broadcast_id bigint(20) UNSIGNED NOT NULL,
+			phone varchar(80) NOT NULL,
+			variables_json longtext NOT NULL,
+			status varchar(30) NOT NULL DEFAULT 'pending',
+			attempts int(11) NOT NULL DEFAULT 0,
+			wa_message_id varchar(190) DEFAULT NULL,
+			error_code varchar(100) DEFAULT NULL,
+			error_message text DEFAULT NULL,
+			sent_at datetime DEFAULT NULL,
+			updated_at datetime DEFAULT NULL,
+			PRIMARY KEY (id), KEY broadcast_id (broadcast_id), KEY status (status), KEY phone (phone)
+		) $charset_collate;";
+		dbDelta( $sql_broadcast_items );
 	}
 
 	/**

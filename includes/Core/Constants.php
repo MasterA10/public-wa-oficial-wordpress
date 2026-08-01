@@ -42,7 +42,7 @@ if ( ! defined( 'WAS_DB_VERSION_OPTION' ) ) {
 }
 
 if ( ! defined( 'WAS_DB_VERSION' ) ) {
-    define( 'WAS_DB_VERSION', '1.2.0' );
+    define( 'WAS_DB_VERSION', '1.3.0' );
 }
 
 if ( ! defined( 'WAS_ENCRYPTION_KEY' ) ) {

@@ -91,6 +91,14 @@ class TableNameResolver {
         return self::get_table_name( 'outbound_messages' );
     }
 
+    public static function getBroadcastsTable() {
+        return self::get_table_name( 'broadcasts' );
+    }
+
+    public static function getBroadcastItemsTable() {
+        return self::get_table_name( 'broadcast_items' );
+    }
+
 	/**
 	 * List of all plugin tables.
 	 *
@@ -129,7 +137,9 @@ class TableNameResolver {
 			'outbox_deliveries',
 			'onboarding_registrations',
 			'onboarding_reconciliation_jobs',
-			'outbound_messages',
+            'outbound_messages',
+            'broadcasts',
+            'broadcast_items',
 		];
 	}
 }

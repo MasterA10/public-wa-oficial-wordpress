@@ -21,6 +21,7 @@ class Routes {
         $inboxController = new InboxApiController();
         $embeddedSignupController = new EmbeddedSignupController();
         $adminMasterController = new AdminMasterApiController();
+        $broadcastController = new BroadcastApiController();
 
         // Inbox (Conversations)
         $inboxController->register_routes();
@@ -172,6 +173,27 @@ class Routes {
                 'permission_callback' => [self::class, 'check_auth'],
             ]
         ]);
+
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo/templates', [[
+            'methods'=>'GET', 'callback'=>[$broadcastController,'templates'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo', [[
+            'methods'=>'GET', 'callback'=>[$broadcastController,'list'], 'permission_callback'=>[self::class,'check_auth']
+        ],[
+            'methods'=>'POST', 'callback'=>[$broadcastController,'create'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo/(?P<id>\d+)/start', [[
+            'methods'=>'POST', 'callback'=>[$broadcastController,'start'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo/(?P<id>\d+)/pause', [[
+            'methods'=>'POST', 'callback'=>[$broadcastController,'pause'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo/(?P<id>\d+)/process', [[
+            'methods'=>'POST', 'callback'=>[$broadcastController,'process'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
+        register_rest_route(WAS_REST_NAMESPACE, '/disparo/(?P<id>\d+)', [[
+            'methods'=>'GET', 'callback'=>[$broadcastController,'status'], 'permission_callback'=>[self::class,'check_auth']
+        ]]);
 
         register_rest_route(WAS_REST_NAMESPACE, '/webhook-events', [
             [
