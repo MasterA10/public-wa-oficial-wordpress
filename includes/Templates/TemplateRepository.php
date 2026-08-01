@@ -149,19 +149,25 @@ class TemplateRepository {
 
         if ( $phone_number_id ) {
             $phones_table = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
-            if ( ctype_digit( (string) $phone_number_id ) ) {
-                $account_id = $wpdb->get_var( $wpdb->prepare(
-                    "SELECT whatsapp_account_id FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+            // O link do disparo usa o ID externo da Meta. Ele pode ser numérico,
+            // portanto não podemos decidir entre ID interno/externo usando ctype_digit().
+            // Primeiro tentamos o identificador externo; o fallback interno mantém
+            // compatibilidade com as telas administrativas que usam a PK local.
+            $phone = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, whatsapp_account_id FROM $phones_table
+                 WHERE phone_number_id = %s AND tenant_id = %d LIMIT 1",
+                (string) $phone_number_id, (int) $tenant_id
+            ) );
+            if ( ! $phone && ctype_digit( (string) $phone_number_id ) ) {
+                $phone = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT id, whatsapp_account_id FROM $phones_table
+                     WHERE id = %d AND tenant_id = %d LIMIT 1",
                     (int) $phone_number_id, (int) $tenant_id
                 ) );
-                $phone_scope = (int) $phone_number_id;
-            } else {
-                $account_id = $wpdb->get_var( $wpdb->prepare(
-                    "SELECT whatsapp_account_id FROM $phones_table WHERE phone_number_id = %s AND tenant_id = %d LIMIT 1",
-                    (string) $phone_number_id, (int) $tenant_id
-                ) );
-                $phone_scope = null;
             }
+
+            $account_id = $phone ? (int) $phone->whatsapp_account_id : 0;
+            $phone_scope = $phone ? (int) $phone->id : null;
 
             if ( ! $account_id ) {
                 return [];

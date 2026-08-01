@@ -3,6 +3,7 @@
 use WAS\Auth\TenantContext;
 use WAS\Core\TableNameResolver;
 use WAS\Meta\TokenVault;
+use WAS\REST\BroadcastApiController;
 use WAS\REST\TemplateApiController;
 
 class TemplateApiControllerTest extends WAS_Router_TestCase {
@@ -121,6 +122,34 @@ class TemplateApiControllerTest extends WAS_Router_TestCase {
 		$this->assert_same( 200, $response->get_status() );
 		$this->assert_count( 1, $response->get_data() );
 		$this->assert_same( 41, (int) $response->get_data()[0]->id );
+	}
+
+	public function test_scoped_list_accepts_numeric_meta_phone_id_used_by_broadcast_link() {
+		global $wpdb;
+		$wpdb->insert( TableNameResolver::get_table_name( 'whatsapp_phone_numbers' ), [
+			'id' => 11,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 7,
+			'phone_number_id' => '5511999999999',
+			'status' => 'active',
+		] );
+		$wpdb->insert( TableNameResolver::getTemplatesTable(), array_merge( $this->template_payload(), [
+			'id' => 43,
+			'tenant_id' => 1,
+			'whatsapp_account_id' => 7,
+			'name' => 'approved_numeric_meta_phone',
+			'body_text' => 'Olá!',
+			'status' => 'APPROVED',
+			'deleted_at' => null,
+		] ) );
+
+		$request = new WP_REST_Request( 'GET', '/disparo/templates' );
+		$request->set_query_params( [ 'phone_number_id' => '5511999999999' ] );
+		$response = ( new BroadcastApiController() )->templates( $request );
+
+		$this->assert_same( 200, $response->get_status() );
+		$this->assert_count( 1, $response->get_data() );
+		$this->assert_same( 43, (int) $response->get_data()[0]->id );
 	}
 
 	public function test_create_item_uses_the_selected_phone_account_and_keeps_phone_scope() {
