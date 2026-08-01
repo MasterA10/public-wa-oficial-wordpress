@@ -5,6 +5,9 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+$legal_company = \WAS\Compliance\LegalPagesGenerator::get_placeholder('company_name');
+$legal_email = \WAS\Compliance\LegalPagesGenerator::get_placeholder('email', get_option('admin_email', 'support@example.com'));
+$legal_phone = \WAS\Compliance\LegalPagesGenerator::get_placeholder('phone');
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -145,14 +148,13 @@ if (!defined('ABSPATH')) {
                 <div class="support-icon">✉️</div>
                 <h3>E-mail de Suporte</h3>
                 <p>Ideal para questões técnicas detalhadas e solicitações formais.</p>
-                <?php $support_email = get_option( 'admin_email', 'support@example.com' ); ?>
-                <a href="mailto:<?php echo esc_attr( $support_email ); ?>" class="btn">Enviar E-mail</a>
+                <a href="mailto:<?php echo esc_attr( $legal_email ); ?>" class="btn">Enviar E-mail</a>
             </div>
 
             <div class="support-item">
                 <div class="support-icon">💬</div>
                 <h3>WhatsApp Oficial</h3>
-                <p>Atendimento rápido para dúvidas sobre a plataforma Plataforma.</p>
+                <p>Atendimento rápido para dúvidas sobre a plataforma <?php echo esc_html($legal_company); ?><?php if ($legal_phone) : ?> · <?php echo esc_html($legal_phone); ?><?php endif; ?>.</p>
                 <a href="<?php echo esc_url( home_url('/app/login') ); ?>" class="btn">Acessar Plataforma</a>
             </div>
 
@@ -165,7 +167,7 @@ if (!defined('ABSPATH')) {
         </div>
 
         <div class="footer-note">
-            &copy; <?php echo date('Y'); ?> Plataforma. Nosso suporte funciona de Seg a Sex, das 08h às 18h.
+            &copy; <?php echo date('Y'); ?> <?php echo esc_html($legal_company); ?>. Nosso suporte funciona de Seg a Sex, das 08h às 18h.
         </div>
     </div>
 </div>

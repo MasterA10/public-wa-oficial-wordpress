@@ -157,6 +157,22 @@ if (!defined('ABSPATH')) {
                     </tr>
                 </table>
 
+                <h2 style="margin-top:30px;">Dados das páginas legais</h2>
+                <p class="description">Esses dados substituem os placeholders das páginas de privacidade, termos, suporte e exclusão de dados.</p>
+                <table class="form-table">
+                    <tr><th scope="row"><label for="legal_company_name">Nome da empresa / marca</label></th><td><input type="text" id="legal_company_name" class="regular-text"><p class="description">Ex.: Minha Empresa.</p></td></tr>
+                    <tr><th scope="row"><label for="legal_legal_name">Razão social / responsável legal</label></th><td><input type="text" id="legal_legal_name" class="regular-text"></td></tr>
+                    <tr><th scope="row"><label for="legal_cnpj">CNPJ</label></th><td><input type="text" id="legal_cnpj" class="regular-text" placeholder="00.000.000/0001-00"></td></tr>
+                    <tr><th scope="row"><label for="legal_address">Endereço</label></th><td><input type="text" id="legal_address" class="large-text" placeholder="Rua, número, bairro"></td></tr>
+                    <tr><th scope="row"><label for="legal_city_state">Cidade / UF</label></th><td><input type="text" id="legal_city_state" class="regular-text" placeholder="Belo Horizonte / MG"></td></tr>
+                    <tr><th scope="row"><label for="legal_email">E-mail de contato</label></th><td><input type="email" id="legal_email" class="regular-text" placeholder="contato@empresa.com.br"></td></tr>
+                    <tr><th scope="row"><label for="legal_phone">Telefone</label></th><td><input type="text" id="legal_phone" class="regular-text"></td></tr>
+                    <tr><th scope="row"><label for="legal_website">Site</label></th><td><input type="url" id="legal_website" class="large-text" placeholder="https://empresa.com.br"></td></tr>
+                    <tr><th scope="row"><label for="legal_contact_url">URL de contato</label></th><td><input type="url" id="legal_contact_url" class="large-text" placeholder="https://empresa.com.br/contato"></td></tr>
+                    <tr><th scope="row"><label for="legal_dpo_name">Encarregado / DPO</label></th><td><input type="text" id="legal_dpo_name" class="regular-text"></td></tr>
+                    <tr><th scope="row"><label for="legal_dpo_email">E-mail do DPO</label></th><td><input type="email" id="legal_dpo_email" class="regular-text"></td></tr>
+                </table>
+
                 <p class="submit">
                     <button type="button" id="was-btn-save-meta" class="button button-primary">Salvar Configurações</button>
                     <span id="was-save-status" style="margin-left: 10px;"></span>

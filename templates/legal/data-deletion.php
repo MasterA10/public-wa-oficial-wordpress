@@ -2,6 +2,8 @@
 /**
  * Template for Data Deletion page
  */
+$legal_company = \WAS\Compliance\LegalPagesGenerator::get_placeholder('company_name');
+$legal_email = \WAS\Compliance\LegalPagesGenerator::get_placeholder('email', get_option('admin_email', 'support@example.com'));
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -24,7 +26,7 @@
 <body>
     <div class="card">
         <h1>Solicitação de Exclusão de Dados</h1>
-        <p>A plataforma <strong>Plataforma</strong> permite que usuários e empresas solicitem a exclusão dos dados associados à integração com a Meta/Facebook/WhatsApp.</p>
+        <p>A plataforma <strong><?php echo esc_html($legal_company); ?></strong> permite que usuários e empresas solicitem a exclusão dos dados associados à integração com a Meta/Facebook/WhatsApp.</p>
 
         <h2>Dados que podem ser excluídos:</h2>
         <ul>
@@ -37,8 +39,7 @@
 
         <h2>Como solicitar:</h2>
         <ol>
-            <?php $support_email = get_option( 'admin_email', 'support@example.com' ); ?>
-            <li>Envie um e-mail para <strong><?php echo esc_html( $support_email ); ?></strong></li>
+            <li>Envie um e-mail para <strong><?php echo esc_html( $legal_email ); ?></strong></li>
             <li>Informe o e-mail da conta, nome da empresa e o número de telefone WhatsApp conectado.</li>
             <li>Nossa equipe processará a solicitação e retornará um protocolo de confirmação em até 48 horas.</li>
         </ol>
@@ -48,7 +49,7 @@
         <a href="<?php echo home_url('/support'); ?>" class="btn">Entrar em contato</a>
     </div>
     <div class="footer">
-        &copy; <?php echo date('Y'); ?> Plataforma. Todos os direitos reservados.
+        &copy; <?php echo date('Y'); ?> <?php echo esc_html($legal_company); ?>. Todos os direitos reservados.
     </div>
 </body>
 </html>

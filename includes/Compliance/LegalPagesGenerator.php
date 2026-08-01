@@ -10,6 +10,21 @@ if (!defined('ABSPATH')) {
  * Gerador de Páginas Legais
  */
 class LegalPagesGenerator {
+	private const SETTINGS_KEY = 'was_legal_company_data';
+
+	private static $defaults = [
+		'company_name'       => 'Plataforma',
+		'legal_name'         => 'Equipe do Produto',
+		'cnpj'               => '',
+		'address'            => '',
+		'city_state'         => '',
+		'email'              => '',
+		'phone'              => '',
+		'website'            => '',
+		'contact_url'        => '',
+		'dpo_name'           => '',
+		'dpo_email'          => '',
+	];
     private static $pages = [
         'privacy-policy'         => 'Política de Privacidade',
         'terms-of-service'      => 'Termos de Serviço',
@@ -28,6 +43,25 @@ class LegalPagesGenerator {
     public static function boot() {
         add_action('template_redirect', [self::class, 'handle_template_redirect']);
     }
+
+	public static function get_company_data() {
+		$saved = get_option( self::SETTINGS_KEY, [] );
+		return array_merge( self::$defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	public static function save_company_data( array $data ) {
+		$clean = [];
+		foreach ( self::$defaults as $key => $default ) {
+			$clean[ $key ] = sanitize_text_field( $data[ $key ] ?? '' );
+		}
+		return update_option( self::SETTINGS_KEY, $clean );
+	}
+
+	public static function get_placeholder( $key, $fallback = '' ) {
+		$data = self::get_company_data();
+		$value = trim( (string) ( $data[ $key ] ?? '' ) );
+		return $value !== '' ? $value : ( $fallback !== '' ? $fallback : ( self::$defaults[ $key ] ?? '' ) );
+	}
 
     /**
      * Intercepta a renderização das páginas legais para usar o template do plugin sem o tema

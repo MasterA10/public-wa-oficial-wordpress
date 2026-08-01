@@ -166,6 +166,12 @@ if (!defined('ABSPATH')) {
 </head>
 <body>
 
+<?php
+$legal_company = \WAS\Compliance\LegalPagesGenerator::get_placeholder('company_name');
+$legal_name = \WAS\Compliance\LegalPagesGenerator::get_placeholder('legal_name', $legal_company);
+$legal_cnpj = \WAS\Compliance\LegalPagesGenerator::get_placeholder('cnpj');
+?>
+
 <div class="legal-wrapper">
     <div class="legal-card">
         <header>
@@ -176,12 +182,12 @@ if (!defined('ABSPATH')) {
             </div>
         </header>
 
-        <p>Estes Termos e Condições de Uso (“Termos”) regulam a relação comercial e o licenciamento de uso entre <strong>Equipe do Produto (Fornecedor)</strong>, doravante denominada “Plataforma” ou “LICENCIANTE”, e a pessoa física ou jurídica que adquire a licença, doravante denominada “CLIENTE” ou “LICENCIADO”.</p>
+        <p>Estes Termos e Condições de Uso (“Termos”) regulam a relação comercial e o licenciamento de uso entre <strong><?php echo esc_html($legal_name); ?></strong><?php if ($legal_cnpj) : ?>, CNPJ <?php echo esc_html($legal_cnpj); ?><?php endif; ?>, doravante denominada “<?php echo esc_html($legal_company); ?>” ou “LICENCIANTE”, e a pessoa física ou jurídica que adquire a licença, doravante denominada “CLIENTE” ou “LICENCIADO”.</p>
 
-        <p>O objeto deste instrumento é o regramento da utilização do software de gestão e automação de atendimentos denominado “SISTEMA PLATAFORMA”, fornecido na modalidade auto-hospedada (selfhosted).</p>
+        <p>O objeto deste instrumento é o regramento da utilização do software de gestão e automação de atendimentos denominado “SISTEMA <?php echo esc_html(strtoupper($legal_company)); ?>”, fornecido na modalidade auto-hospedada (selfhosted).</p>
 
         <div class="important-notice">
-            AO CONTRATAR E UTILIZAR O SISTEMA PLATAFORMA, O CLIENTE DECLARA TER LIDO, COMPREENDIDO E ACEITO INTEGRALMENTE ESTES TERMOS.
+            AO CONTRATAR E UTILIZAR O SISTEMA <?php echo esc_html(strtoupper($legal_company)); ?>, O CLIENTE DECLARA TER LIDO, COMPREENDIDO E ACEITO INTEGRALMENTE ESTES TERMOS.
         </div>
 
         <ul class="toc-list">
@@ -263,7 +269,7 @@ if (!defined('ABSPATH')) {
         <p>9.1. O código-fonte, arquitetura e logos são de propriedade intelectual exclusiva da Plataforma.</p>
 
         <h2>10. PRIVACIDADE E DADOS (LGPD)</h2>
-        <p>10.1. A Plataforma é Controladora apenas dos dados cadastrais do licenciante. O Cliente é o Controlador dos dados de seus próprios usuários e leads.</p>
+        <p>10.1. A <?php echo esc_html($legal_company); ?> é Controladora apenas dos dados cadastrais do licenciante. O Cliente é o Controlador dos dados de seus próprios usuários e leads.</p>
 
         <h2>11. DISPOSIÇÕES GERAIS</h2>
         <p>11.1. A tolerância de uma das partes quanto ao descumprimento de qualquer obrigação pela outra não implicará em renúncia ao direito de exigir o cumprimento da obrigação.</p>
@@ -272,7 +278,7 @@ if (!defined('ABSPATH')) {
         <p>12.1. Regido pelas leis da República Federativa do Brasil. Foro eleito: Comarca do domicílio do LICENCIANTE para dirimir quaisquer dúvidas oriundas deste instrumento.</p>
 
         <div class="footer-note">
-            &copy; <?php echo date('Y'); ?> Plataforma. Todos os direitos reservados.<br>
+            &copy; <?php echo date('Y'); ?> <?php echo esc_html($legal_company); ?>. Todos os direitos reservados.<br>
             A tecnologia por trás do seu atendimento oficial.
         </div>
     </div>

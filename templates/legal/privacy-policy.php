@@ -5,6 +5,15 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+$legal_company = \WAS\Compliance\LegalPagesGenerator::get_placeholder('company_name');
+$legal_email = \WAS\Compliance\LegalPagesGenerator::get_placeholder('email', get_option('admin_email', 'support@example.com'));
+$legal_contact_url = \WAS\Compliance\LegalPagesGenerator::get_placeholder('contact_url', home_url('/support'));
+$legal_website = \WAS\Compliance\LegalPagesGenerator::get_placeholder('website', home_url('/'));
+$legal_cnpj = \WAS\Compliance\LegalPagesGenerator::get_placeholder('cnpj');
+$legal_address = \WAS\Compliance\LegalPagesGenerator::get_placeholder('address');
+$legal_city_state = \WAS\Compliance\LegalPagesGenerator::get_placeholder('city_state');
+$legal_dpo_name = \WAS\Compliance\LegalPagesGenerator::get_placeholder('dpo_name');
+$legal_dpo_email = \WAS\Compliance\LegalPagesGenerator::get_placeholder('dpo_email', $legal_email);
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -175,7 +184,7 @@ if (!defined('ABSPATH')) {
 
         <p>Oi, Titular!</p>
 
-        <p>A <strong>Plataforma</strong> tem um compromisso sério com a privacidade e a proteção dos dados pessoais das pessoas impactadas pelas suas atividades. Por isso, criamos este Aviso de Privacidade (o “Aviso”), para informar você como coletamos, utilizamos, processamos e compartilhamos dados pessoais ao utilizar o nosso ecossistema.</p>
+        <p>A <strong><?php echo esc_html($legal_company); ?></strong> tem um compromisso sério com a privacidade e a proteção dos dados pessoais das pessoas impactadas pelas suas atividades. Por isso, criamos este Aviso de Privacidade (o “Aviso”), para informar você como coletamos, utilizamos, processamos e compartilhamos dados pessoais ao utilizar o nosso ecossistema.</p>
 
         <div class="section-highlight">
             Como você vai perceber, nós coletamos o mínimo possível de Dados Pessoais na prestação dos nossos serviços e optamos por não ter acesso a nenhum Dado Pessoal a que não precisamos ter acesso para cumprimento de nossas atividades.
@@ -204,11 +213,11 @@ if (!defined('ABSPATH')) {
         </ul>
 
         <h2>2. A QUEM SE APLICA ESTE AVISO?</h2>
-        <p>Este Aviso de Privacidade se aplica aos Usuários do Plataforma e do Site.</p>
+        <p>Este Aviso de Privacidade se aplica aos Usuários do <?php echo esc_html($legal_company); ?> e do Site.</p>
 
         <h2>3. PAPÉIS E RESPONSABILIDADES</h2>
-        <p>A Plataforma é a responsável pelo tratamento dos dados pessoais dos seus Usuários, agindo como <strong>Controladora</strong> desses dados.</p>
-        <p>Todavia, quando um Cliente do Plataforma usa a sua licença, ele também age como <strong>Controlador Conjunto</strong> sobre esses dados, sendo indispensável que mantenha suas próprias políticas de proteção.</p>
+        <p>A <?php echo esc_html($legal_company); ?> é a responsável pelo tratamento dos dados pessoais dos seus Usuários, agindo como <strong>Controladora</strong> desses dados.</p>
+        <p>Todavia, quando um Cliente do <?php echo esc_html($legal_company); ?> usa a sua licença, ele também age como <strong>Controlador Conjunto</strong> sobre esses dados, sendo indispensável que mantenha suas próprias políticas de proteção.</p>
 
         <h2>4. COMO OS DADOS SÃO TRATADOS</h2>
         <p><strong>Dados de Cadastro:</strong> Nome, Telefone, E-mail, IP e Senha.</p>
@@ -216,14 +225,14 @@ if (!defined('ABSPATH')) {
         <p><strong>Cookies:</strong> Utilizamos cookies necessários (essenciais), de performance, funcionais e de marketing para aprimorar sua experiência.</p>
 
         <div class="section-highlight" style="background: #eff6ff; border-color: #dbeafe; color: #1e40af;">
-            <strong>Importante:</strong> O Plataforma não tem acesso às conversas dos Usuários nem aos seus contatos telefônicos operados na plataforma.
+            <strong>Importante:</strong> O <?php echo esc_html($legal_company); ?> não tem acesso às conversas dos Usuários nem aos seus contatos telefônicos operados na plataforma.
         </div>
 
         <h2>5. COMPARTILHAMENTO DE DADOS</h2>
         <p>Poderemos compartilhar dados com parceiros essenciais como:</p>
         <ul>
             <li>Hetzner (Servidores Cloud)</li>
-            <li>Plataforma WhatsApp (Meta)</li>
+            <li><?php echo esc_html($legal_company); ?> WhatsApp (Meta)</li>
             <li>Plataformas de Pagamento (Hotmart/Greenn)</li>
         </ul>
 
@@ -245,12 +254,14 @@ if (!defined('ABSPATH')) {
 
         <h2>9. CANAL DE COMUNICAÇÃO</h2>
         <p>Para exercer seus direitos ou tirar dúvidas, utilize nosso canal oficial:</p>
-        <?php $support_email = get_option( 'admin_email', 'support@example.com' ); ?>
-        <p><strong>E-mail:</strong> <?php echo esc_html( $support_email ); ?><br>
-        <strong>Site:</strong> https://example.com/contato</p>
+        <p><strong>E-mail:</strong> <?php echo esc_html( $legal_email ); ?><br>
+        <?php if ($legal_cnpj) : ?><strong>CNPJ:</strong> <?php echo esc_html($legal_cnpj); ?><br><?php endif; ?>
+        <?php if ($legal_address) : ?><strong>Endereço:</strong> <?php echo esc_html($legal_address); ?><?php if ($legal_city_state) : ?>, <?php echo esc_html($legal_city_state); ?><?php endif; ?><br><?php endif; ?>
+        <strong>Site:</strong> <a href="<?php echo esc_url($legal_website); ?>"><?php echo esc_html($legal_website); ?></a><br>
+        <strong>Contato:</strong> <a href="<?php echo esc_url($legal_contact_url); ?>"><?php echo esc_html($legal_contact_url); ?></a><?php if ($legal_dpo_name) : ?><br><strong>Encarregado/DPO:</strong> <?php echo esc_html($legal_dpo_name); ?> (<?php echo esc_html($legal_dpo_email); ?>)<?php endif; ?></p>
 
         <div class="footer-note">
-            &copy; <?php echo date('Y'); ?> Plataforma. Todos os direitos reservados.<br>
+            &copy; <?php echo date('Y'); ?> <?php echo esc_html($legal_company); ?>. Todos os direitos reservados.<br>
             Privacidade em primeiro lugar.
         </div>
     </div>

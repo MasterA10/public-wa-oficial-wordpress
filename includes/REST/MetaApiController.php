@@ -88,7 +88,8 @@ if ($normalized_signup_url && $normalized_signup_url !== $embedded_signup_url) {
             'primary_phone_number_id' => $phone_service->get_primary_id($tenant_id),
             'meta_access_token' => $raw_token ? '********' : '',
             'waba_id'       => $waba_id ?: '',
-            'embedded_signup_url' => $embedded_signup_url ?: ''
+            'embedded_signup_url' => $embedded_signup_url ?: '',
+            'legal_company_data' => \WAS\Compliance\LegalPagesGenerator::get_company_data(),
         ], 200);
     }
 
@@ -137,10 +138,17 @@ if ($normalized_signup_url && $normalized_signup_url !== $embedded_signup_url) {
         $whatsapp_account_id = null;
 
         if (empty($params['app_id'])) {
+			if ( isset( $params['legal_company_data'] ) && is_array( $params['legal_company_data'] ) ) {
+				\WAS\Compliance\LegalPagesGenerator::save_company_data( $params['legal_company_data'] );
+				return new WP_REST_Response( [ 'message' => 'Dados das páginas legais salvos com sucesso.' ], 200 );
+			}
             return new WP_REST_Response(['message' => 'App ID é obrigatório'], 400);
         }
 
         try {
+			if ( isset( $params['legal_company_data'] ) && is_array( $params['legal_company_data'] ) ) {
+				\WAS\Compliance\LegalPagesGenerator::save_company_data( $params['legal_company_data'] );
+			}
             // Se o secret vier mascarado (asteriscos ou pontos), não atualizamos
             if (isset($params['app_secret']) && (strpos($params['app_secret'], '...') !== false || $params['app_secret'] === '********')) {
                 unset($params['app_secret']);

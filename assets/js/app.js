@@ -2410,6 +2410,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 setValue('data_deletion_url', data.data_deletion_url);
                 setValue('config_id', data.config_id);
                 setValue('embedded_signup_url', data.embedded_signup_url);
+				const legal = data.legal_company_data || {};
+				Object.entries(legal).forEach(([key, value]) => setValue(`legal_${key}`, value));
                 
                 setText('privacy_policy_url', data.privacy_policy_url);
                 setText('terms_of_service_url', data.terms_of_service_url);
@@ -2484,6 +2486,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 waba_id: document.getElementById('waba_id').value,
                 config_id: document.getElementById('config_id') ? document.getElementById('config_id').value : '',
                 embedded_signup_url: document.getElementById('embedded_signup_url') ? document.getElementById('embedded_signup_url').value : ''
+				,legal_company_data: Object.fromEntries(['company_name','legal_name','cnpj','address','city_state','email','phone','website','contact_url','dpo_name','dpo_email'].map(key => [key, document.getElementById(`legal_${key}`)?.value || '']))
             };
             try {
                 await wasApiFetch('/meta/config', 'POST', payload);
