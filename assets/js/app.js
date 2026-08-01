@@ -499,6 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${p.quality_rating || 'UNKNOWN'}</td>
                         <td>
                             <button class="button test-msg" data-id="${p.id}">Testar Envio</button>
+                            <a class="button" href="${wasApp.adminUrl}disparo&was_phone_number_id=${encodeURIComponent(p.phone_number_id || '')}&was_tenant_id=${encodeURIComponent(p.tenant_id || '')}&was_phone_display=${encodeURIComponent(p.display_phone_number || '')}">Disparo</a>
                             <button class="button button-primary open-phone-chat" data-phone-id="${p.phone_number_id}" data-tenant-id="${p.tenant_id}" data-phone-display="${p.display_phone_number || ''}">Abrir chat</button>
                         </td>
                     </tr>

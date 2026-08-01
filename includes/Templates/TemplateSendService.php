@@ -31,7 +31,7 @@ class TemplateSendService {
     /**
      * Envia um template aprovado.
      */
-    public function send($conversation_id, $template_id, $variables = [], $button_variables = [], $to_phone = null) {
+    public function send($conversation_id, $template_id, $variables = [], $button_variables = [], $to_phone = null, $selected_phone_number_id = null) {
         $tenant_id = TenantContext::get_tenant_id();
         
         $repository = new TemplateRepository();
@@ -53,7 +53,9 @@ class TemplateSendService {
         $to = preg_replace('/\D/', '', $to);
 
         $phone_service = new PhoneNumberService();
-        $phone_number_id = $phone_service->get_primary_id($tenant_id);
+        $phone_number_id = $selected_phone_number_id
+            ? ($phone_service->get_by_phone_number_id($tenant_id, $selected_phone_number_id)->phone_number_id ?? null)
+            : $phone_service->get_primary_id($tenant_id);
         $token = $this->token_service->get_active_token($tenant_id);
 
         if (!$phone_number_id || !$token) return ['success' => false, 'error' => 'Configuração de envio incompleta.'];

@@ -3,6 +3,7 @@ namespace WAS\Dispar;
 
 use WAS\Templates\TemplateRepository;
 use WAS\Templates\TemplateSendService;
+use WAS\WhatsApp\PhoneNumberService;
 
 if (!defined('ABSPATH')) exit;
 
@@ -11,6 +12,10 @@ class BroadcastService {
     public function __construct() { $this->repo = new BroadcastRepository(); }
 
     public function create(array $data) {
+        $phone_number_id = sanitize_text_field($data['phone_number_id'] ?? '');
+        if (!$phone_number_id) return ['success'=>false,'error'=>'Selecione o número WhatsApp que fará o disparo.'];
+        $phone = (new PhoneNumberService())->get_by_phone_number_id(\WAS\Auth\TenantContext::get_tenant_id(), $phone_number_id);
+        if (!$phone) return ['success'=>false,'error'=>'O número selecionado não pertence ao tenant atual.'];
         $template = (new TemplateRepository())->get_by_id((int)$data['template_id']);
         if (!$template) return ['success'=>false,'error'=>'Template não encontrado.'];
         if (strtolower((string)$template->status) !== 'approved') return ['success'=>false,'error'=>'O template precisa estar aprovado pela Meta.'];
@@ -26,7 +31,7 @@ class BroadcastService {
             $row['variables'] = array_intersect_key($vars, array_flip($allowed));
         }
         unset($row);
-        $id = $this->repo->create(['template_id'=>$template->id,'name'=>$template->name,'category'=>$template->category,'interval_seconds'=>(int)$data['interval_seconds'],'cost_per_message'=>(float)$data['cost_per_message']], $rows);
+        $id = $this->repo->create(['template_id'=>$template->id,'phone_number_id'=>$phone_number_id,'name'=>$template->name,'category'=>$template->category,'interval_seconds'=>(int)$data['interval_seconds'],'cost_per_message'=>(float)$data['cost_per_message']], $rows);
         return ['success'=>true,'id'=>$id,'total_count'=>count($rows)];
     }
 
@@ -35,7 +40,7 @@ class BroadcastService {
         if (!$broadcast || $broadcast->status !== 'running') return ['success'=>false,'paused'=>true,'message'=>'Disparo pausado ou encerrado.'];
         $item = $this->repo->next_item($id);
         if (!$item) { $this->repo->update($id,['status'=>'completed','finished_at'=>current_time('mysql', true)]); return ['success'=>true,'completed'=>true]; }
-        $result = (new TemplateSendService())->send(null, (int)$broadcast->template_id, json_decode($item->variables_json, true) ?: [], [], $item->phone);
+        $result = (new TemplateSendService())->send(null, (int)$broadcast->template_id, json_decode($item->variables_json, true) ?: [], [], $item->phone, $broadcast->phone_number_id ?? null);
         if (!empty($result['success'])) {
             $this->repo->update_item($item->id,['status'=>'sent','wa_message_id'=>$result['wa_message_id'] ?? null,'sent_at'=>current_time('mysql', true)]);
             $this->repo->update($id,['sent_count'=>(int)($broadcast->sent_count ?? 0)+1]);

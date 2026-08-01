@@ -30,7 +30,7 @@ class BroadcastContractsTest extends WAS_Router_TestCase {
         global $wpdb;
         $this->insert_template(40, 'APPROVED', ['1'=>'nome','2'=>'compra']);
         $result = (new BroadcastService())->create([
-            'template_id'=>40, 'interval_seconds'=>30, 'cost_per_message'=>0.075,
+            'template_id'=>40, 'phone_number_id'=>'meta-phone-dispar', 'interval_seconds'=>30, 'cost_per_message'=>0.075,
             'rows'=>[
                 ['phone'=>'+55 (31) 99999-1111','variables'=>['nome'=>'Ana','compra'=>'Livro']],
                 ['phone'=>'55 31 98888-2222','variables'=>['nome'=>'Bia','compra'=>'Curso']],
@@ -50,23 +50,23 @@ class BroadcastContractsTest extends WAS_Router_TestCase {
 
     public function test_create_rejects_unapproved_template_invalid_phone_and_missing_variable() {
         $this->insert_template(41, 'PENDING', ['1'=>'nome']);
-        $pending = (new BroadcastService())->create(['template_id'=>41,'interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
+        $pending = (new BroadcastService())->create(['template_id'=>41,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
         $this->assert_false($pending['success']);
         $this->assert_true(str_contains($pending['error'], 'aprovado'));
 
         $this->insert_template(42, 'APPROVED', ['1'=>'nome','2'=>'compra']);
-        $missing = (new BroadcastService())->create(['template_id'=>42,'interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
+        $missing = (new BroadcastService())->create(['template_id'=>42,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
         $this->assert_false($missing['success']);
         $this->assert_true(str_contains($missing['error'], 'compra'));
 
-        $invalid = (new BroadcastService())->create(['template_id'=>42,'interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'---','variables'=>['nome'=>'Ana','compra'=>'Livro']]]]);
+        $invalid = (new BroadcastService())->create(['template_id'=>42,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'---','variables'=>['nome'=>'Ana','compra'=>'Livro']]]]);
         $this->assert_false($invalid['success']);
         $this->assert_true(str_contains($invalid['error'], 'telefone'));
     }
 
     public function test_pause_keeps_pending_items_and_process_next_does_not_send() {
         $this->insert_template(43, 'APPROVED', []);
-        $created = (new BroadcastService())->create(['template_id'=>43,'interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>[]]]]);
+        $created = (new BroadcastService())->create(['template_id'=>43,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>[]]]]);
         $repo = new BroadcastRepository();
         $repo->update($created['id'], ['status'=>'paused']);
         $result = (new BroadcastService())->process_next($created['id']);
@@ -80,7 +80,7 @@ class BroadcastContractsTest extends WAS_Router_TestCase {
 
     public function test_process_next_sends_template_and_marks_item_sent() {
         $this->insert_template(44, 'APPROVED', ['1'=>'nome']);
-        $created = (new BroadcastService())->create(['template_id'=>44,'interval_seconds'=>60,'cost_per_message'=>0.05,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
+        $created = (new BroadcastService())->create(['template_id'=>44,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0.05,'rows'=>[['phone'=>'5531999991111','variables'=>['nome'=>'Ana']]]]);
         $repo = new BroadcastRepository();
         $repo->update($created['id'], ['status'=>'running']);
         $GLOBALS['was_test_http_response'] = ['code'=>200,'body'=>['messages'=>[['id'=>'wamid.dispar.1']]]];
@@ -99,7 +99,7 @@ class BroadcastContractsTest extends WAS_Router_TestCase {
 
     public function test_process_next_records_meta_recipient_error_as_failed_item() {
         $this->insert_template(45, 'APPROVED', []);
-        $created = (new BroadcastService())->create(['template_id'=>45,'interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>[]]]]);
+        $created = (new BroadcastService())->create(['template_id'=>45,'phone_number_id'=>'meta-phone-dispar','interval_seconds'=>60,'cost_per_message'=>0,'rows'=>[['phone'=>'5531999991111','variables'=>[]]]]);
         (new BroadcastRepository())->update($created['id'], ['status'=>'running']);
         $GLOBALS['was_test_http_response'] = ['code'=>400,'body'=>['error'=>['message'=>'Recipient does not exist','code'=>131026]]];
 

@@ -149,19 +149,30 @@ class TemplateRepository {
 
         if ( $phone_number_id ) {
             $phones_table = TableNameResolver::get_table_name( 'whatsapp_phone_numbers' );
-            $account_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT whatsapp_account_id FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
-                (int) $phone_number_id,
-                (int) $tenant_id
-            ) );
+            if ( ctype_digit( (string) $phone_number_id ) ) {
+                $account_id = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT whatsapp_account_id FROM $phones_table WHERE id = %d AND tenant_id = %d LIMIT 1",
+                    (int) $phone_number_id, (int) $tenant_id
+                ) );
+                $phone_scope = (int) $phone_number_id;
+            } else {
+                $account_id = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT whatsapp_account_id FROM $phones_table WHERE phone_number_id = %s AND tenant_id = %d LIMIT 1",
+                    (string) $phone_number_id, (int) $tenant_id
+                ) );
+                $phone_scope = null;
+            }
 
             if ( ! $account_id ) {
                 return [];
             }
 
-            $where .= ' AND whatsapp_account_id = %d AND (router_phone_number_id IS NULL OR router_phone_number_id = %d)';
+            $where .= ' AND whatsapp_account_id = %d';
             $args[] = (int) $account_id;
-            $args[] = (int) $phone_number_id;
+            if ( null !== $phone_scope ) {
+                $where .= ' AND (router_phone_number_id IS NULL OR router_phone_number_id = %d)';
+                $args[] = $phone_scope;
+            }
         }
 
         $args[] = $limit;

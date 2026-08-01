@@ -24,6 +24,11 @@ class Migrator {
 		self::migrate_conversations_table();
 		self::migrate_router_columns();
 		self::migrate_onboarding_security_columns();
+		self::migrate_broadcast_phone_column();
+	}
+
+	private static function migrate_broadcast_phone_column() {
+		self::add_missing_columns( TableNameResolver::getBroadcastsTable(), [ 'phone_number_id' => 'varchar(120) DEFAULT NULL' ] );
 	}
 
 	/**

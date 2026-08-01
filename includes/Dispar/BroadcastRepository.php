@@ -21,6 +21,7 @@ class BroadcastRepository {
         $now = current_time('mysql', true);
         $wpdb->insert($this->broadcasts, [
             'tenant_id' => $tenant, 'template_id' => (int)$data['template_id'],
+            'phone_number_id' => sanitize_text_field($data['phone_number_id']),
             'name' => sanitize_text_field($data['name'] ?? ''), 'category' => sanitize_key($data['category'] ?? 'utility'),
             'interval_seconds' => max(5, min(86400, (int)$data['interval_seconds'])),
             'cost_per_message' => max(0, (float)$data['cost_per_message']), 'status' => 'draft',

@@ -917,6 +917,7 @@ class Installer {
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			tenant_id bigint(20) UNSIGNED NOT NULL,
 			template_id bigint(20) UNSIGNED NOT NULL,
+			phone_number_id varchar(120) NOT NULL,
 			name varchar(190) DEFAULT NULL,
 			category varchar(40) DEFAULT NULL,
 			interval_seconds int(11) NOT NULL DEFAULT 60,
